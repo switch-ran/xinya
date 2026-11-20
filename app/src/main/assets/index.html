@@ -132,7 +132,7 @@
 <script>
 "use strict";
 
-const VERSION = 'v1.3.1';
+const VERSION = 'v1.3.2';
 
 /* ───────── 存储 ───────── */
 const LS = {
@@ -368,7 +368,7 @@ async function 念这一段(text){
     toast('合成语音中…');
     const res = await fetch(cfg.base.replace(/\/$/,'') + '/v1/tools/tts', {
       method:'POST',
-      headers:{ 'Authorization':'Bearer ' + cfg.key, 'Content-Type':'application/json' },
+      headers:{ 'Authorization':'Bearer ' + 洗key(), 'Content-Type':'application/json' },
       body: JSON.stringify({ text: plain.slice(0, 800), voice_id: 'stella', format: 'wav', filter_markdown: true }),
     });
     if(!res.ok){ toast('朗读失败：HTTP ' + res.status); return }
@@ -410,7 +410,7 @@ async function 判对立(text){
     '只回 discuss / vent / incite。\n\n' + t.slice(0, 800);
   try{
     const res = await fetch(cfg.base.replace(/\/$/,'') + '/chat/completions', {
-      method:'POST', headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer ' + cfg.key },
+      method:'POST', headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer ' + 洗key() },
       body: JSON.stringify({ model: cfg.model, stream:false, temperature:0, max_tokens:8,
         thinking:{type:'disabled'}, messages:[{ role:'user', content:提示 }] }),
     });
@@ -443,6 +443,12 @@ async function 检查对立(text){
     LS.set('incite', 0);
     清空记忆('多次煽动性别对立');
   }
+}
+
+function 洗key(){
+  const 净 = String(cfg.key || '').replace(/[^\x21-\x7E]/g, '');
+  if(净 !== cfg.key){ cfg.key = 净; LS.set('cfg', cfg); }
+  return 净;
 }
 
 async function send(){
@@ -485,7 +491,7 @@ async function send(){
     }
     const res = await fetch(cfg.base.replace(/\/$/,'') + '/chat/completions', {
       method:'POST',
-      headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer ' + cfg.key },
+      headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer ' + 洗key() },
       body: JSON.stringify(body),
     });
     if(!res.ok){
@@ -539,7 +545,10 @@ async function send(){
       if(cfg.tts) 念这一段(acc);
     }
   }catch(e){
-    aiEl.textContent = '出错：' + (e.message || e);
+    const m = String(e.message || e);
+    aiEl.textContent = /ISO-8859-1|non ISO/i.test(m)
+      ? 'API Key 里混进了中文或全角空格。去设置里重新粘一次，只复制 sk- 开头那一串。'
+      : '出错：' + m;
   }finally{
     clearInterval(提示计时);
     sending = false; updateBar();
@@ -559,7 +568,7 @@ async function makeDiaryAndHandoff(){
   try{
     const res = await fetch(cfg.base.replace(/\/$/,'') + '/chat/completions', {
       method:'POST',
-      headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer ' + cfg.key },
+      headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer ' + 洗key() },
       body: JSON.stringify({ model: cfg.model, temperature: 0.3,
         messages: [{ role:'user', content: prompt }] }),
     });
@@ -667,7 +676,7 @@ function openDrawer(){ fillDrawer(); refreshBkInfo(); $('drawer').hidden = false
 function closeDrawer(){
   cfg.base = $('cfgBase').value.trim() || 'https://api.deepseek.com';
   cfg.model = $('cfgModel').value.trim() || 'deepseek-flash';
-  cfg.key = $('cfgKey').value.trim();
+  cfg.key = String($('cfgKey').value || '').replace(/[^\x21-\x7E]/g, '');   // 只留可见 ASCII，中文/全角空格会让请求头炸
   cfg.search = Boolean($('cfgSearch').checked);
   cfg.tts = $('cfgTts') ? Boolean($('cfgTts').checked) : false;
   persona = $('cfgPersona').value;
