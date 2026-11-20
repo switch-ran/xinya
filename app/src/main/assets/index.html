@@ -89,6 +89,7 @@
   <input id="cfgModel" placeholder="deepseek-flash">
   <div class="hint">API Key（只存在这台手机里，不上传）</div>
   <input id="cfgKey" type="password" placeholder="sk-…" autocomplete="off">
+    <div id="keyHint" class="hint"></div>
 
   <h3>联网搜索</h3>
   <label class="hint" style="display:flex;gap:8px;align-items:center">
@@ -132,7 +133,7 @@
 <script>
 "use strict";
 
-const VERSION = 'v1.3.2';
+const VERSION = 'v1.3.3';
 
 /* ───────── 存储 ───────── */
 const LS = {
@@ -445,6 +446,18 @@ async function 检查对立(text){
   }
 }
 
+
+/** 保存/显示时告诉用户 Key 长什么样，别等报错才发现粘错了 */
+function 看key(){
+  const el = $('keyHint');
+  if(!el) return;
+  const k = String(cfg.key || '');
+  if(!k){ el.textContent = '还没填'; el.style.color = ''; return }
+  const 短 = k.length < 20 || !k.startsWith('sk-');
+  el.textContent = `${k.slice(0,3)}…${k.slice(-4)}（${k.length} 位）` + (短 ? '  ← 长度不对，正常是 sk- 开头、30 位以上' : '');
+  el.style.color = 短 ? '#e08080' : '';
+}
+
 function 洗key(){
   const 净 = String(cfg.key || '').replace(/[^\x21-\x7E]/g, '');
   if(净 !== cfg.key){ cfg.key = 净; LS.set('cfg', cfg); }
@@ -546,6 +559,10 @@ async function send(){
     }
   }catch(e){
     const m = String(e.message || e);
+    if(/HTTP 401/.test(m)){
+      aiEl.textContent = '这个 API Key 无效（服务端不认）。去设置里看一眼：应该是 sk- 开头、30 位以上，只粘那一串。';
+      clearInterval(提示计时); sending = false; updateBar(); return;
+    }
     aiEl.textContent = /ISO-8859-1|non ISO/i.test(m)
       ? 'API Key 里混进了中文或全角空格。去设置里重新粘一次，只复制 sk- 开头那一串。'
       : '出错：' + m;
@@ -660,6 +677,7 @@ function fillDrawer(){
   $('cfgBase').value = cfg.base;
   $('cfgModel').value = cfg.model;
   $('cfgKey').value = cfg.key;
+  看key();
   $('cfgSearch').checked = Boolean(cfg.search);
   if($('cfgTts')) $('cfgTts').checked = Boolean(cfg.tts);
   $('cfgPersona').value = persona;
@@ -676,7 +694,10 @@ function openDrawer(){ fillDrawer(); refreshBkInfo(); $('drawer').hidden = false
 function closeDrawer(){
   cfg.base = $('cfgBase').value.trim() || 'https://api.deepseek.com';
   cfg.model = $('cfgModel').value.trim() || 'deepseek-flash';
-  cfg.key = String($('cfgKey').value || '').replace(/[^\x21-\x7E]/g, '');   // 只留可见 ASCII，中文/全角空格会让请求头炸
+  cfg.key = String($('cfgKey').value || '')
+    .replace(/[\u201c\u201d\u2018\u2019"']/g, '')   // 顺手去掉引号
+    .replace(/[^\x21-\x7E]/g, '');                  // 只留可见 ASCII
+  看key();
   cfg.search = Boolean($('cfgSearch').checked);
   cfg.tts = $('cfgTts') ? Boolean($('cfgTts').checked) : false;
   persona = $('cfgPersona').value;
