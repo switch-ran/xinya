@@ -14,6 +14,10 @@
 
 - 最新构建：https://github.com/switch-ran/xinya/releases/latest/download/app-debug.apk
 
+## 版本
+
+当前 v2.0.1：能力和私版对齐，去掉语音/日程/小本子。
+
 ## 自己打包
 
 ```
