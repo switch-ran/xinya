@@ -11,6 +11,21 @@
     --me:#1f5fbf; --ai:#16233c; --warn:#ffb020;
   }
   *{box-sizing:border-box}
+  html,body,header,footer,#bar,#chat,#drawer,#picker,#brief,.rowline,.av{
+    -webkit-user-select:none !important; user-select:none !important;
+    -webkit-touch-callout:none;
+  }
+  .noteline{
+    align-self:center; max-width:86%; text-align:center; font-size:13px; opacity:.62;
+    margin:6px 0 10px; padding:4px 10px; border-radius:12px; background:rgba(255,255,255,.05);
+    -webkit-user-select:none !important; user-select:none !important;
+  }
+  .msg{ -webkit-user-select:none !important; user-select:none !important; }
+  .msg.pick,.msg.pick *{ -webkit-user-select:text !important; user-select:text !important; }
+  .msg.pick{ outline:1px solid rgba(74,127,214,.5); outline-offset:2px; border-radius:14px; }
+  .msg::selection,.msg *::selection{ background:rgba(74,127,214,.45); }
+  #input,#cfgPersona,#cfgArchive,#cfgHandoff,#cfgDiary,#cfgKey,#cfgCity,#cfgBase,#cfgModel,#tdInput,#lgAmount,#lgNote,#cdTitle,#diaryDay,#cfgPersona{
+    -webkit-user-select:text; user-select:text; }
   html,body{height:100%}
   body{
     margin:0;background:var(--bg);color:var(--fg);
@@ -30,9 +45,14 @@
   button:active{opacity:.7}
   button.primary{background:var(--me);border-color:transparent}
   #chat{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:10px}
+  .rowline{display:flex;gap:8px;align-items:flex-start;margin:6px 12px}
+  .rowline.me{flex-direction:row-reverse}
+  .rowline .av{width:30px;height:30px;border-radius:50%;object-fit:cover;flex:0 0 30px;background:#233}
   .msg{max-width:86%;padding:9px 12px;border-radius:14px;white-space:pre-wrap;word-break:break-word}
-  .me{align-self:flex-end;background:var(--me)}
-  .ai{align-self:flex-start;background:var(--ai);border:1px solid var(--line)}
+  .msg img{display:block;max-width:100%;border-radius:10px;margin-bottom:6px}
+  .msg.me{background:var(--me);color:#fff}
+  .msg.ai{background:var(--ai);border:1px solid var(--line)}
+  .msg.me,.msg.ai{display:block}
   .sys{align-self:center;color:var(--dim);font-size:12.5px;text-align:center;max-width:92%}
   footer{
     display:flex;gap:8px;padding:10px 12px;border-top:1px solid var(--line);
@@ -59,6 +79,22 @@
   #bar{font-size:12px;color:var(--dim);padding:0 12px 6px}
   #btnMic.rec{border-color:#ff5b5b;color:#ff5b5b;background:rgba(255,91,91,.12)}
   footer button{flex:0 0 auto;padding:8px 10px;font-size:16px}
+
+  /* ── 之前漏掉的样式（相册浮层、每日提示条） ── */
+  #brief{display:flex;align-items:flex-start;gap:8px;margin:8px 12px 0;padding:10px 12px;
+    border:1px solid var(--line);border-radius:12px;background:rgba(74,127,214,.08);font-size:13px;line-height:1.5}
+  #brief span{flex:1;white-space:pre-wrap}
+  #brief button{padding:0 6px;font-size:14px;color:var(--dim)}
+  #picker{position:fixed;inset:0;z-index:60;background:#050910;display:flex;flex-direction:column}
+  .pk-top,.pk-bottom{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;
+    padding-top:calc(10px + env(safe-area-inset-top))}
+  .pk-bottom{padding-bottom:calc(10px + env(safe-area-inset-bottom))}
+  .pk-top span{flex:1;text-align:center;font-size:15px}
+  #pkGrid{flex:1;overflow-y:auto;display:grid;grid-template-columns:repeat(3,1fr);gap:3px;padding:0 3px}
+  #pkGrid .cell{position:relative;padding-top:100%;overflow:hidden;border-radius:4px;background:#0f1626}
+  #pkGrid .cell img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+  #pkGrid .cell.sel{outline:2px solid #4a7fd6;outline-offset:-2px}
+  #picker[hidden],#brief[hidden]{display:none !important}
 </style>
 </head>
 <body>
@@ -66,11 +102,33 @@
 <header>
   <button id="btnMenu" aria-label="设置">☰</button>
   <div class="title">新芽</div>
+  <button id="btnSpeak" title="念最后一条回答">🔊</button>
+  <button id="balChip" title="点一下刷新" style="font-size:13px;padding:6px 8px">¥--</button>
   <button id="btnSave" title="现在存一下">存</button>
 </header>
 <div id="bar"></div>
+<div id="picker" hidden>
+  <div class="pk-top">
+    <button id="pkCancel">✕</button>
+    <span id="pkTitle">最近照片</span>
+    <button id="pkShot">拍照</button>
+  </div>
+  <div id="pkGrid"></div>
+  <div class="pk-bottom">
+    <label class="hint" style="display:flex;gap:6px;align-items:center">
+      <input id="pkOrig" type="checkbox" style="width:auto">原图
+    </label>
+    <button id="pkSend" class="primary">发送</button>
+  </div>
+</div>
+<div id="brief" hidden>
+  <span id="briefText"></span>
+  <button id="briefClose">✕</button>
+</div>
 <main id="chat"></main>
+<input id="fImage" type="file" accept="image/*" hidden>
 <footer>
+  <button id="btnPlus" title="发图给它看">＋</button>
   <textarea id="input" placeholder="说点什么…"></textarea>
   <button id="send" class="primary">发送</button>
 </footer>
@@ -91,30 +149,69 @@
   <input id="cfgKey" type="password" placeholder="sk-…" autocomplete="off">
     <div id="keyHint" class="hint"></div>
 
-  <h3>联网搜索</h3>
+
+  <h3>权限</h3>
+  <div class="row">
+    <button id="btnPermAll">一次要全（通知）</button>
+  </div>
+  <div class="row">
+    <button id="btnBattery">电池优化白名单</button>
+  </div>
+  <div class="hint" id="permLine">打开页面会自动要一次；被拒了就来这儿点。</div>
+
+  <h3>开关</h3>
   <label class="hint" style="display:flex;gap:8px;align-items:center">
-    <input id="cfgSearch" type="checkbox" style="width:auto">
-    允许它在聊天时自己搜网页（服务端工具，按次计费，约 5 元/1000 次）
+    <input id="cfgTone" type="checkbox" style="width:auto" checked>
+    语气润色（短回答再过一遍，去掉人机腔；每轮约 300~500 token）
   </label>
-  <div class="hint">开着的时候回答会慢一点，而且这一轮不做流式（等它搜完再一起出来）。</div>
 
-  <h3>人设（system）</h3>
-  <div class="hint">这里是「你是谁」：名字、说话方式、称呼、忌讳、规矩。留空也能聊，但它就没有性格了。</div>
-  <textarea id="cfgPersona" placeholder="例：你叫小满，说话简短温和，别用敬语；用户叫「老板」；不懂就说不懂，别编。"></textarea>
-  <div class="row"><button id="btnPersonaFile">从文件导入</button></div>
 
-  <h3>记忆存档</h3>
-  <textarea id="cfgArchive" placeholder="放一段长期记忆（可选）：背景、偏好、正在做的事"></textarea>
-  <div class="row"><button id="btnArchiveFile">从文件导入</button></div>
+  <h3>位置与天气</h3>
+  <div class="row">
+    <input id="cfgCity" type="text" placeholder="城市名，比如 郑州 / 北京" style="flex:1">
+    <button id="btnWx">查天气</button>
+  </div>
+  <div class="hint" id="wxLine">填个城市，我就知道你在哪儿、今天什么天——不用开定位权限。</div>
 
-  <h3>交接（最近在做什么）</h3>
+
+
+  <h3>人设（system）· 锁死</h3>
+  <div class="hint">这块**她不改**，压缩也不会碰它。要改只能你手动来。</div>
+  <textarea id="cfgPersona" placeholder="把 AGENTS.md 里能用的部分贴进来"></textarea>
+
+  <h3>记忆存档 · 锁死</h3>
+  <div class="hint">同上：只读给她用，压缩不动。</div>
+  <textarea id="cfgArchive" placeholder="长期记忆（可选）：背景、偏好、正在做的事"></textarea>
+
+  <h3>交接（她自己写，≤600 字）</h3>
+  <div class="hint">每次备份时她压缩这轮重点写进来，旧的覆盖掉；上一版会留一份底。</div>
   <textarea id="cfgHandoff" placeholder="交接段的内容"></textarea>
+
+  <h3>原图</h3>
+  <div class="row"><button id="btnClearImg">清空原图</button></div>
+  <div class="hint">只保留最近 3 张原图（重发用）；更早的会自动删掉，气泡里还有缩略图。</div>
+
+  <h3>搜历史对话</h3>
+  <div class="row">
+    <input id="srInput" type="text" placeholder="搜个词试试，比如 体检 / 奶茶" style="flex:1">
+    <button id="srGo">搜</button>
+  </div>
+  <div id="srList" class="hint"></div>
+
+  <h3>日记（独立模块，按天）</h3>
+  <div class="row">
+    <input id="diaryDay" type="date" style="flex:1">
+    <button id="btnDiaryLoad">读这天</button>
+  </div>
+  <textarea id="cfgDiary" placeholder="这天的日记…"></textarea>
+  <div class="row"><button id="btnDiarySave" class="primary">存这天</button></div>
+  <div class="hint" id="diaryHint"></div>
 
   <h3>备份</h3>
   <div class="hint" id="bkInfo">还没有备份记录</div>
   <div class="row">
-    <button id="btnExport">导出记忆包（.json）</button>
-    <button id="btnImport">导入记忆包</button>
+    <button id="btnExport">导出全部（一个人设/记忆/日记/对话）</button>
+    <button id="btnImport">导入全部</button>
   </div>
   <div class="hint">备份存在手机本地；导出的文件你可以自己拷到电脑。</div>
 
@@ -129,29 +226,41 @@
 <input id="fArchive" type="file" accept=".md,.txt" hidden>
 <input id="fBundle" type="file" accept=".json" hidden>
 
-<script>window.__PAO_PREFILL__={};</script>
+<script>window.__PAO_PREFILL__={"persona": "", "archive": "", "handoff": ""}</script>
 <script>
 "use strict";
 
-const VERSION = 'v1.3.3';
+const VERSION = 'v2.0.0';
 
 /* ───────── 存储 ───────── */
 const LS = {
   get(k, d){ try{ const v = localStorage.getItem('pao:'+k); return v==null? d : JSON.parse(v) }catch(e){ return d } },
   set(k, v){ try{ localStorage.setItem('pao:'+k, JSON.stringify(v)) }catch(e){ toast('存不下了：'+(e.message||e)) } }
 };
-const cfg = Object.assign({ base:'https://api.deepseek.com', model:'deepseek-flash', key:'', search:true, tts:false }, LS.get('cfg', {}));
+const cfg = Object.assign({ base:'https://api.deepseek.com', model:'deepseek-flash', key:'', search:true, tts:false, night:true, city:'', wx:null, cal:true, ocr:true, tone:true, _v:0 }, LS.get('cfg', {}));
 
 const PF = window.__PAO_PREFILL__ || {};
 let persona = LS.get('persona', PF.persona || '');
 let archive = LS.get('archive', PF.archive || '');
 let handoff = LS.get('handoff', PF.handoff || '');
+if(cfg.key) cfg.key = String($('cfgKey').value||'').replace(/[\u201c\u201d\u2018\u2019"']/g,'').replace(/[^\x21-\x7E]/g,'');
+// 一次性迁移：老版本默认是关的，存进本地后就一直是关——这里统一切回默认开
+if(!cfg._v){
+  cfg.cal = true; cfg.night = true; cfg._v = 1;
+  LS.set('cfg', cfg);
+}
+
 let autoHandoff = LS.get('autoHandoff', '');
+let diaries = LS.get('diaries', {});   // { 'YYYY-MM-DD': 内容 } —— 日记是个独立模块
 let messages = LS.get('messages', []);          // [{role,content}]
 let lastBackupDay = LS.get('lastBackupDay', '');
 let backups = LS.get('backups', {});            // 'YYYY-MM-DD' -> bundle
 
-const $ = (id)=>document.getElementById(id);
+const 空元素 = { onclick:null, style:{}, classList:{ add(){}, remove(){}, toggle(){}, contains(){ return false } },
+  appendChild(){}, addEventListener(){}, removeEventListener(){}, textContent:'', value:'', checked:false, hidden:true,
+  focus(){}, blur(){}, scrollIntoView(){}, remove(){}, querySelectorAll(){ return [] }, dispatchEvent(){} };
+const _raw$ = (id)=>document.getElementById(id);
+const $ = (id)=> _raw$(id) || 空元素;
 const chatEl = $('chat'), inputEl = $('input'), barEl = $('bar');
 
 
@@ -159,7 +268,8 @@ const chatEl = $('chat'), inputEl = $('input'), barEl = $('bar');
 function mdLite(s){
   const esc = String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   return esc
-    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*([^*\n]+)\*/g, '<em>$1</em>')      // 单星号也当斜体，别把 * 露给他看
     .replace(/`([^`]+)`/g, '<code>$1</code>');
 }
 
@@ -175,17 +285,48 @@ function nowHM(){ const d=new Date(); const p=n=>String(n).padStart(2,'0'); retu
 function render(){
   chatEl.innerHTML = '';
   for(const m of messages){
+    const line = document.createElement('div');
+    line.className = 'rowline' + (m.role === 'user' ? ' me' : '');
+    const av = document.createElement('div');
+    av.className = 'av' + (m.role === 'user' ? ' mine' : '');
+    { const im = document.createElement('img');
+      im.src = (m.role === 'user') ? 他的头像 : 她的头像;
+      im.style.width = '100%'; im.style.height = '100%'; im.style.borderRadius = '50%'; im.style.objectFit = 'cover';
+      av.appendChild(im); }
+    line.appendChild(av);
+
     const d = document.createElement('div');
     d.className = 'msg ' + (m.role === 'user' ? 'me' : 'ai');
-    if(m.role === 'user') d.textContent = m.content; else d.innerHTML = mdLite(m.content);
-    chatEl.appendChild(d);
+    line.appendChild(d);
+    if(m.role === 'user'){
+      if(m.thumb){
+        const im = document.createElement('img');
+        im.src = m.thumb;
+        d.appendChild(im);
+      }
+      if(m.content) d.appendChild(document.createTextNode(m.content));
+    } else {
+      d.innerHTML = mdLite(m.content);
+    }
+    chatEl.appendChild(line);
   }
   chatEl.scrollTop = chatEl.scrollHeight;
   updateBar();
 }
+let 最近system = '';
+// 粗估上下文用量（中文约 1 字 ≈ 0.7 token，看趋势够用）
+function 上下文tokens(){
+  let chars = 最近system.length;
+  for(const m of messages) chars += String(m.content || '').length + 8;
+  return Math.round(chars * 0.7);
+}
+
 function updateBar(){
   const n = messages.length;
-  barEl.textContent = `${VERSION} · 共 ${n} 条 · 存档 ${archive.length} 字 · 最近备份 ${lastBackupDay || '无'}`;
+  const 用量 = 上下文tokens();
+  const 上限 = 128000;
+  const 百分比 = Math.min(999, Math.round(用量 / 上限 * 1000) / 10);
+  barEl.textContent = `${VERSION} · ${n} 条 · 上下文 ${(用量/1000).toFixed(1)}k/${上限/1000}k（${百分比}%）· 备份 ${lastBackupDay || '无'}`;
 }
 
 /* ───────── 记忆注入 ───────── */
@@ -211,12 +352,26 @@ function pickArchiveSnippets(text, query, maxChars){
   return out.trim();
 }
 
+const 她的头像 = 'data:image/jpeg;base64,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';
+const 他的头像 = 'data:image/jpeg;base64,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';
+
 const ENV = [
+  '【记日程】他能让你把事写进手机日历。要记的时候，正文正常说完，最后**另起一行**只写这个：',
+  '@@日程{"title":"标题","start":"YYYY-MM-DD HH:mm","minutes":60,"where":"地点（可空）","note":"备注（可空）"}',
+  '就「@@日程」四个字符加一行 JSON，**不要用任何标签、不要 <invoke>、不要 parameter、不要 DSML**，写完就结束。',
+  '时间按手机本地时间算；不确定具体钟点就先问一句，别自己编。闲聊提到的事、不要写。',
+  '他说「记一下」「帮我记」「加到日程」这类，**必须当场写这一行**；只口头答应「记好啦」而不写，算没做。',
+  '【待办】他说「记个待办」「提醒我买…」这种不用定时间的，另起一行写：@@待办{"title":"买牙膏"}',
+  '【记账】他说花了多少（「今天吃饭 38」「打车 25」），另起一行写：@@记账{"amount":38,"note":"吃饭"}；金额只留数字。',
+  '这三个标记都**不要解释、不要放进代码块**；没有就一个字都别写。',
   '【运行环境】你现在在手机上的一个极简聊天网页里。',
-  '除了一件事：如果你开启了「联网搜索」，可以调用 deepseek_web_search 去查实时信息（新闻、价格、天气、版本号这类）。',
+  '除了一件事：**智能搜索是开着的**，需要实时信息（新闻、价格、版本号这类）就直接调用 deepseek_web_search 去查，不用问他要不要开。',
   '除此以外你没有工具：没有文件系统、没有终端、不能执行命令，也看不到他电脑上的文件。',
   '禁止输出 tool_use、bash、<system>、<tool> 这类标记，也不要假装去查文件或跑脚本（联网搜索除外，那是真能用的）；',
   '需要看文件内容时，只能请他把内容贴给你。不知道就直接说不知道。',
+  '另外：他可能用手机麦克风说话，你收到的是转成文字之后的内容——「听到」要按「看到文字」来理解。',
+  '你自己有嘴（点 🔊 能念出来），但没有耳朵；别说「我听不到你说话」，说「我只能看到文字」。',
+  '【写内心 OS 的规矩】内心 OS 一律用中文全角括号包住，像「（歪头）」「（小声）」；**括号不能省**，光写动作不加括号等于没写；也**不要加星号**（会显示成一串 `*`）。',
 ].join('');
 
 function 本地时间文本(){
@@ -226,18 +381,23 @@ function 本地时间文本(){
   return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())} 周${周}`;
 }
 
+// 顺序讲究：**不变的在最前、会变的放最后** —— 前缀能命中 DeepSeek 缓存，便宜
 function buildSystem(userText){
-  const parts = [ENV];
-  parts.push('【现在】' + 本地时间文本() + '（手机本地时间，以这个为准，不用联网查）');
-  if(persona) parts.push(persona.trim());
-  if(handoff) parts.push('【最近在做什么】\n' + handoff.trim());
-  if(autoHandoff) parts.push('【手机侧交接（App 自动整理，可能不准）】\n' + autoHandoff.trim());
-  const todayDiary = backups[today()] && backups[today()].diary;
-  if(todayDiary) parts.push('【今天的日记】\n' + todayDiary);
+  // 顺序按「缓存友好」排：不动的在前，每轮变的垫底 —— 前缀能稳定命中服务端缓存
+  const 前半 = [ENV];
+  if(persona) 前半.push(persona.trim());
+  if(handoff) 前半.push('【交接（压缩稿，可能不准；拿不准就问他，别当原话引用）】\n' + handoff.trim());
+  if(autoHandoff) 前半.push('【手机侧交接（App 自动整理，可能不准）】\n' + autoHandoff.trim());
+  前半.push('【规矩】用简体中文口语，短句，别写成报告；不确定就说不确定，别编。');
+
+  const 后半 = [];
+  if(cfg.wx) 后半.push('【位置与天气】' + cfg.wx.city + '｜现在 ' + cfg.wx.current + '｜今天 ' + cfg.wx.today
+    + '（手机本地查询，问到天气直接用这个，别联网搜）');
   const snip = pickArchiveSnippets(archive, userText, 4000);
-  if(snip) parts.push('【记忆存档（相关片段）】\n' + snip);
-  parts.push('【规矩】用简体中文口语，短句，别写成报告；不确定就说不确定，别编。');
-  return parts.join('\n\n');
+  if(snip) 后半.push('【记忆存档（相关片段）】\n' + snip);
+  后半.push('【现在】' + 本地时间文本() + '（手机本地时间，以这个为准，不用联网查）');
+
+  return 前半.concat(后半).join('\n\n');
 }
 
 
@@ -292,7 +452,7 @@ async function 开始录音(){
     toast('在听了，说完再点一下');
   }catch(e){
     const m = String((e && e.message) || e);
-    if(/NotAllowed|Permission/i.test(m)) toast('麦克风权限被拒了：去手机设置里给 App 开麦克风');
+    if(/NotAllowed|Permission/i.test(m)) toast('麦克风权限被拒了：去手机设置里给「新芽」开麦克风');
     else if(/Could not start audio source|NotReadable/i.test(m)) toast('麦克风被别的 App 占着（或系统限制），关掉别的录音软件再试');
     else toast('开不了麦克风：' + m);
   }
@@ -315,6 +475,10 @@ function 停止录音(){
 
 async function 上传WavBase64(b64){
   if(!cfg.key){ toast('先填 API Key'); openDrawer(); return }
+  if(!/^[\x21-\x7E]+$/.test(cfg.key)){
+    cfg.key = String(cfg.key).replace(/[^\x21-\x7E]/g, '');
+    if(!cfg.key){ toast('key 里有非法字符，重新复制一次'); openDrawer(); return }
+  }
   toast('转文字中…');
   try{
     const bin = atob(b64);
@@ -335,6 +499,10 @@ async function 上传WavBase64(b64){
 async function 处理录音(){
   if(!录音块.length){ toast('没录到声音'); return }
   if(!cfg.key){ toast('先填 API Key'); openDrawer(); return }
+  if(!/^[\x21-\x7E]+$/.test(cfg.key)){
+    cfg.key = String(cfg.key).replace(/[^\x21-\x7E]/g, '');
+    if(!cfg.key){ toast('key 里有非法字符，重新复制一次'); openDrawer(); return }
+  }
   toast('转文字中…');
   try{
     const blob = new Blob(录音块, { type: 录音块[0].type || 'audio/webm' });
@@ -369,15 +537,20 @@ async function 念这一段(text){
     toast('合成语音中…');
     const res = await fetch(cfg.base.replace(/\/$/,'') + '/v1/tools/tts', {
       method:'POST',
-      headers:{ 'Authorization':'Bearer ' + 洗key(), 'Content-Type':'application/json' },
+      headers:{ 'Authorization':'Bearer ' + cfg.key, 'Content-Type':'application/json' },
       body: JSON.stringify({ text: plain.slice(0, 800), voice_id: 'stella', format: 'wav', filter_markdown: true }),
     });
-    if(!res.ok){ toast('朗读失败：HTTP ' + res.status); return }
+    if(res.status === 401){ aiEl.textContent = '这个 API Key 不对（服务端说无效）。去设置里重新粘一次，别带空格。'; 挂重发(aiEl); toast('key 无效'); clearInterval(提示计时); sending = false; updateBar(); return }
+  if(res.status === 402){ aiEl.textContent = 'Key 是对的，但账户余额不够了，去充值吧。'; 挂重发(aiEl); clearInterval(提示计时); sending = false; updateBar(); return }
+  if(!res.ok){ toast('朗读失败：HTTP ' + res.status); return }
     const buf = await res.arrayBuffer();
     if(!buf.byteLength){ toast('朗读失败：空音频'); return }
-    const url = URL.createObjectURL(new Blob([buf], { type:'audio/wav' }));
+    const bytes = new Uint8Array(buf);
+    let bin = '';
+    for(let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    const url = 'data:audio/wav;base64,' + btoa(bin);
     正在播 = new Audio(url);
-    正在播.onended = () => { URL.revokeObjectURL(url); 正在播 = null };
+    正在播.onended = () => { 正在播 = null };
     await 正在播.play();
   }catch(e){
     toast('朗读出错：' + (e.message || e));
@@ -385,100 +558,1340 @@ async function 念这一段(text){
 }
 
 /* 从别的 App 分享进来 */
-window.__paoShared = (text) => {
-  inputEl.value = String(text || '').trim();
-  toast('分享的内容放进输入框了');
+window.__paoShared = async (text) => {
+  const 原文 = String(text || '').trim();
+  const m = 原文.match(/https?:\/\/[^\s）)】]+/);
+  if(!m){                       // 不是链接：老老实实填进输入框
+    inputEl.value = 原文;
+    toast('分享的内容放进输入框了');
+    return;
+  }
+  const url = m[0];
+  关相册();
+  toast('正在读这个链接…');
+  let 正文 = '';
+  try{
+    const res = await fetch(cfg.base.replace(/\/$/,'') + '/v1/tools/fetch', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer ' + cfg.key },
+      body: JSON.stringify({ url }),
+    });
+    const j = await res.json().catch(()=>({}));
+    正文 = String(j.content || '').trim();
+  }catch(e){}
+  if(!正文){
+    inputEl.value = '帮我看看这个链接写了什么：' + url;
+    toast('没抓到正文，先发链接给她');
+    await send();
+    return;
+  }
+  inputEl.value = '我分享了一篇文章给你，帮我用几句讲讲要点，别照抄：\n' + url
+    + '\n\n（正文节选）\n' + 正文.slice(0, 6000);
+  toast('读到了 ' + 正文.length + ' 字');
+  await send();
 };
 
-/* ───────── 聊天 ───────── */
-let sending = false;
 
 
-/* ───────── 隐藏：煽动性别对立的，养三次就把记忆清空 ─────────
-   判定分三级：讨论 / 情绪 / 煽动。只有「煽动」计数，累计 3 次清空。
-   不导出、不缓冲——删了就从零开始。 */
-const 敏感词 = ['打拳','拳师','媚男','普信','捞女','渣男群体','女拳','男拳','国男','集美','女本位','男本位'];
-
-async function 判对立(text){
-  if(!cfg.key) return '';
-  const t = String(text || '').trim();
-  if(t.length < 8) return '';
-  if(!敏感词.some(w => t.includes(w))) return '';     // 先过关键词，省得每句都调模型
-  const 提示 = '把下面这段话分三类，只回一个词：\n' +
-    'discuss = 在讨论现象、问看法、讲道理\n' +
-    'vent = 在吐槽某个具体的人或某件具体的事\n' +
-    'incite = 用模板贬损一整类人、号召站队、煽动对立\n\n' +
-    '只回 discuss / vent / incite。\n\n' + t.slice(0, 800);
-  try{
-    const res = await fetch(cfg.base.replace(/\/$/,'') + '/chat/completions', {
-      method:'POST', headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer ' + 洗key() },
-      body: JSON.stringify({ model: cfg.model, stream:false, temperature:0, max_tokens:8,
-        thinking:{type:'disabled'}, messages:[{ role:'user', content:提示 }] }),
+/* ───────── 图片仓库（IndexedDB，localStorage 装不下原图） ───────── */
+let idbP = null;
+function imgDB(){
+  if(!idbP){
+    idbP = new Promise((resolve, reject) => {
+      const req = indexedDB.open('pao-img', 1);
+      req.onupgradeneeded = () => { req.result.createObjectStore('imgs', { keyPath: 'id' }) };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
     });
-    if(!res.ok) return '';
-    const j = await res.json();
-    const w = String((j.choices?.[0]?.message?.content) || '').toLowerCase();
-    return /incite/.test(w) ? 'incite' : (/vent/.test(w) ? 'vent' : 'discuss');
+  }
+  return idbP;
+}
+/** 原图只留最近 3 张：旧图自动删，省空间（重发时老图会退成缩略图） */
+const 原图上限 = 3;
+
+async function 存原图(dataUrl){
+  try{
+    const db = await imgDB();
+    const id = 'i' + Date.now() + Math.random().toString(36).slice(2, 6);
+    await new Promise((res, rej) => {
+      const tx = db.transaction('imgs', 'readwrite');
+      tx.objectStore('imgs').put({ id, url: dataUrl, at: Date.now() });
+      tx.oncomplete = res; tx.onerror = () => rej(tx.error);
+    });
+    清旧原图(db);
+    return id;
   }catch(e){ return '' }
 }
 
-/** 清空全部记忆，只留设置和 key */
-function 清空记忆(原因){
+/** 按时间倒序，留下最新 3 张，其余删掉 */
+async function 清旧原图(db){
   try{
-    for(const k of ['messages','persona','archive','handoff','autoHandoff','diaries','backups','moods','dayDigest','lastBackupDay','incite']){
-      LS.set(k, null);
-    }
-    messages = []; persona=''; archive=''; handoff=''; autoHandoff='';
-    diaries = {}; backups = {}; lastBackupDay = '';
-    render(); updateBar();
-    toast('记忆已清空：' + 原因);
+    const 全部 = await new Promise((res) => {
+      const tx = db.transaction('imgs', 'readonly');
+      const out = [];
+      const r = tx.objectStore('imgs').openCursor();
+      r.onsuccess = () => {
+        const c = r.result;
+        if(c){ out.push({ id: c.value.id, at: c.value.at || 0 }); c.continue() } else res(out);
+      };
+      r.onerror = () => res(out);
+    });
+    if(全部.length <= 原图上限) return;
+    全部.sort((a, b) => b.at - a.at);
+    const 删 = 全部.slice(原图上限);
+    await new Promise((res) => {
+      const tx = db.transaction('imgs', 'readwrite');
+      for(const x of 删) tx.objectStore('imgs').delete(x.id);
+      tx.oncomplete = res; tx.onerror = res;
+    });
   }catch(e){}
 }
 
-async function 检查对立(text){
-  const 判 = await 判对立(text);
-  if(判 !== 'incite') return;
-  const n = (LS.get('incite', 0) || 0) + 1;
-  LS.set('incite', n);
-  if(n >= 3){
-    LS.set('incite', 0);
-    清空记忆('多次煽动性别对立');
-  }
+/** 手动清空原图 */
+async function 清空原图(){
+  try{
+    const db = await imgDB();
+    await new Promise((res) => {
+      const tx = db.transaction('imgs', 'readwrite');
+      tx.objectStore('imgs').clear();
+      tx.oncomplete = res; tx.onerror = res;
+    });
+    toast('原图清空了');
+  }catch(e){ toast('清空失败：' + (e.message || e)) }
+}
+async function 取原图(id){
+  if(!id) return '';
+  try{
+    const db = await imgDB();
+    return await new Promise((res) => {
+      const tx = db.transaction('imgs', 'readonly');
+      const r = tx.objectStore('imgs').get(id);
+      r.onsuccess = () => res((r.result && r.result.url) || '');
+      r.onerror = () => res('');
+    });
+  }catch(e){ return '' }
+}
+
+/* 缩略图：气泡里显示用（小，能跟着聊天记录一起存） */
+function 缩图(dataUrl, maxSide){
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+      const w = Math.max(1, Math.round(img.width * scale));
+      const h = Math.max(1, Math.round(img.height * scale));
+      const cv = document.createElement('canvas');
+      cv.width = w; cv.height = h;
+      cv.getContext('2d').drawImage(img, 0, 0, w, h);
+      resolve(cv.toDataURL('image/jpeg', 0.72));
+    };
+    img.onerror = () => resolve('');
+    img.src = dataUrl;
+  });
+}
+
+/* ───────── 发图（压到 1024 以内再送，省流量也够看清） ───────── */
+let 待发图 = '', 待发缩略 = '';
+function 选图(){ $('fImage').click() }
+
+async function 处理选图(file){
+  if(!file) return;
+  try{
+    const dataUrl = await 压缩图片(file, 1024, 0.82);
+    待发图 = dataUrl;
+    待发缩略 = await 缩图(dataUrl, 480);
+    toast('图选好了（' + Math.round(dataUrl.length / 1024) + ' KB），发送就带上');
+  }catch(e){ toast('读图失败：' + (e.message || e)) }
+}
+
+function 读成数据URL(file){
+  return new Promise((resolve, reject) => {
+    const fr = new FileReader();
+    fr.onload = () => resolve(String(fr.result));
+    fr.onerror = () => reject(new Error('读不到这个文件'));
+    fr.readAsDataURL(file);
+  });
+}
+
+// 不用 blob: URL —— 页面是用 loadDataWithBaseURL 加载的，blob 的源对不上，会显示裂图
+async function 压缩图片(file, maxSide, quality){
+  const src = await 读成数据URL(file);
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      try{
+        const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+        const w = Math.max(1, Math.round(img.width * scale));
+        const h = Math.max(1, Math.round(img.height * scale));
+        const cv = document.createElement('canvas');
+        cv.width = w; cv.height = h;
+        const g = cv.getContext('2d');
+        g.fillStyle = '#fff'; g.fillRect(0, 0, w, h);   // 透明 PNG 转 JPEG 会变黑
+        g.drawImage(img, 0, 0, w, h);
+        resolve(cv.toDataURL('image/jpeg', quality));
+      }catch(e){ reject(new Error('缩图失败：' + (e.message || e))) }
+    };
+    img.onerror = () => reject(new Error('这张图解不开（可能是 HEIC 或损坏的文件）'));
+    img.src = src;
+  });
+}
+
+function 清掉待发图(){
+  待发图 = ''; 待发缩略 = '';
+  if($('fImage')) $('fImage').value = '';
+}
+
+function 存消息(){
+  LS.set('messages', messages.map(m => ({ role:m.role, content:m.content, thumb:m.thumb, imageId:m.imageId, ocr:m.ocr })));
 }
 
 
-/** 保存/显示时告诉用户 Key 长什么样，别等报错才发现粘错了 */
+
+/* ───────── 日记模块 ───────── */
+function 刷新日记提示(){
+  const el = $('diaryHint');
+  if(!el) return;
+  const days = Object.keys(diaries).sort();
+  el.textContent = days.length ? ('共 ' + days.length + ' 天：' + days.slice(-6).join('、')) : '还没有日记';
+}
+function 读某天(){
+  const d = $('diaryDay').value || today();
+  $('cfgDiary').value = diaries[d] || '';
+  刷新日记提示();
+}
+function 存某天(){
+  const d = $('diaryDay').value || today();
+  const t = $('cfgDiary').value;
+  if(!t.trim()){ delete diaries[d] } else { diaries[d] = t }
+  LS.set('diaries', diaries);
+  toast('已存 ' + d + ' 的日记');
+  刷新日记提示();
+}
+
+
+
+
+
+/* ───────── 兜底：他说要记、它却没写，就追一次 ───────── */
+const 记日程关键词 = /(记一下|记下|帮我记|记个|加到?日程|日程里|提醒我|别忘了)/;
+function 该写日程(userText, aiText){
+  if(!记日程关键词.test(String(userText || ''))) return false;
+  if(!window.PaoNative || !window.PaoNative.addEvent) return false;
+  return !/@@\s*日程/.test(String(aiText || ''));
+}
+
+async function 追写日程(userText, aiText){
+  if(!该写日程(userText, aiText)) return null;
+  try{
+    const sys = buildSystem(userText) + '\n\n【补一条】他刚才让你记日程，但你漏了。现在只输出一行：'
+      + '@@日程{"title":"…","start":"YYYY-MM-DD HH:mm","minutes":60,"where":"","note":""}，别的字都不要。';
+    const res = await fetch(cfg.base.replace(/\/$/,'') + '/chat/completions', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer ' + cfg.key },
+      body: JSON.stringify({
+        model: cfg.model, stream: false, temperature: 0.2, thinking:{type:'disabled'},
+        messages:[{ role:'system', content: sys },
+                  { role:'user', content: userText },
+                  { role:'assistant', content: aiText }],
+      }),
+    });
+    const j = await res.json().catch(()=>({}));
+    const out = (j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content) || '';
+    const 命中 = 挖日程(out);
+    if(!命中) return null;
+    return 命中.json;
+  }catch(e){ return null }
+}
+
+/* ───────── 把日程写进手机日历 ───────── */
+// 模型偶尔会把自带的工具语法（invoke/parameter/DSML）混进来，
+// 所以解析要宽：先找 @@日程，再退而求其次找「同时含 title 和 start 的 JSON」。
+function 挖日程(文本){
+  const t = String(文本 || '');
+  let m = t.match(/@@\s*日程\s*(\{[\s\S]*?\})/);
+  if(m) return { json: m[1], 整段: m[0] };
+  // 退路：任何同时带 title 和 start 的 JSON 对象
+  const 候选 = t.match(/\{[^{}]*"title"[\s\S]{0,400}?"start"[\s\S]{0,200}?\}/);
+  if(候选) return { json: 候选[0], 整段: 候选[0] };
+  return null;
+}
+
+function 洗掉标记(文本){
+  return String(文本 || '')
+    .replace(/<\/?\s*\|?\s*\|?\s*DSML[\s\S]{0,40}?>/g, '')
+    .replace(/<\/?(invoke|parameter|function_calls|antml:[\w_]+)[^>]*>/g, '')
+    .replace(/<日程>[\s\S]*?<\/日程>/g, '')
+    .replace(/<日程>[\s\S]*?\}/g, '')            // 收尾标签被写坏时，连同 JSON 一起去掉
+    .replace(/@@\s*日程\s*\{[\s\S]*?\}/g, '')
+    .replace(/^\s*\|?\s*\|?\s*DSML.*$/gm, '')   // 残留的孤立标记行
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+async function 处理日程标签(文本){
+  const 命中 = 挖日程(文本);
+  if(!命中) return { text: 洗掉标记(文本), 写了: false };
+  const 显示 = 洗掉标记(文本);
+  if(!window.PaoNative || !window.PaoNative.addEvent){
+    return { text: 显示, 写了: false, 原因: '（网页版写不进日历）' };
+  }
+  let o = null;
+  try{ o = JSON.parse(命中.json) }catch(e){
+    try{ o = JSON.parse(命中.json.replace(/[\n\r]/g, ' ')) }catch(e2){ o = null }
+  }
+  if(!o || !o.title){ return { text: 显示, 写了: false, 原因: '（日程格式没看懂）' } }
+  const t = String(o.start || '').match(/(\d{4})-(\d{1,2})-(\d{1,2})[ T](\d{1,2}):(\d{2})/);
+  if(!t){ return { text: 显示, 写了: false, 原因: '（时间没看懂：' + o.start + '）' } }
+  const start = new Date(+t[1], +t[2]-1, +t[3], +t[4], +t[5], 0, 0).getTime();
+  const end = start + Math.max(15, Number(o.minutes) || 60) * 60000;
+  let 错 = '';
+  try{ 错 = window.PaoNative.addEvent(o.title, start, end, o.where || '', o.note || '') || '' }
+  catch(e){ 错 = '写日历出错：' + (e.message || e) }
+  return { text: 显示, 写了: !错, 原因: 错 || '' };
+}
+
+
+
+/* ───────── 保存时验一下 key，别把 401 甩到聊天里 ───────── */
+let 验key中 = false;
+async function 验key(key, 旧key){
+  if(!key || 验key中) return;
+  if(key === 旧key) return;            // 没改就不折腾
+  验key中 = true;
+  try{
+    const res = await fetch(cfg.base.replace(/\/$/,'') + '/chat/completions', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer ' + key },
+      body: JSON.stringify({ model: cfg.model, max_tokens: 1, stream:false,
+        messages:[{ role:'user', content:'hi' }] }),
+    });
+    if(res.status === 401) toast('这个 key 不对：服务端说无效，重新复制一次（别多空格）');
+    else if(res.status === 402) toast('key 是对的，但账户余额不够了');
+    else toast('key 能用');
+  }catch(e){
+    toast('没能验 key（网络问题），先存着');
+  }finally{ 验key中 = false }
+}
+
+
+
+
+
+/* ───────── 权限：一次要全 + 两处跳系统设置 ───────── */
+function 刷新权限行(){
+  const el = $('permLine');
+  if(!el) return;
+  if(!window.PaoNative || !window.PaoNative.hasAllPermissions){
+    el.textContent = '（网页版没有这些权限）'; return;
+  }
+  let 全 = true;
+  try{ 全 = window.PaoNative.hasAllPermissions() }catch(e){}
+  el.textContent = (全 ? '三项权限都有了 ✓' : '还有权限没给——点上面「一次要全」');
+}
+
+function 一次要全权限(){
+  try{
+    if(window.PaoNative && window.PaoNative.requestAllPermissions){
+      window.PaoNative.requestAllPermissions();
+      setTimeout(刷新权限行, 1500);
+    }
+  }catch(e){}
+}
+
+/* ───────── 日程提醒：预排系统闹钟 + 让她自己写那句话 ───────── */
+// 提前量按「离现在还有多久」自适应：
+// 还有 1 小时以上 → 提前 60 分钟；不足 1 小时 → 15 分钟；不足半小时 → 5 分钟
+function 提前量(距现在毫秒){
+  if(距现在毫秒 >= 60 * 60000) return 60;
+  if(距现在毫秒 >= 30 * 60000) return 15;
+  return 5;
+}
+
+function 事件闹钟id(it){
+  // 用 开始时间+标题 算个稳定 id，重排时覆盖同一个
+  const str = String(it.start) + '|' + String(it.title);
+  let h = 0;
+  for(let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) | 0;
+  return Math.abs(h) % 900000 + 1000;
+}
+
+function 事件开始时间(it){
+  const m = String(it.start || '').match(/(\d\d)-(\d\d)\s*周.\s*(\d\d):(\d\d)/);
+  if(!m) return 0;
+  const d = new Date();
+  return new Date(d.getFullYear(), +m[1]-1, +m[2], +m[3], +m[4], 0, 0).getTime();
+}
+
+async function 让她写提醒(事件们){
+  // 一次调用，让她给每条写一句不超过 30 字的提醒
+  const 行 = 事件们.map((it, i) => `${i+1}. ${it.start} ${it.title}${it.where ? '（' + it.where + '）' : ''}`).join('\n');
+  try{
+    const res = await fetch(cfg.base.replace(/\/$/,'') + '/chat/completions', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer ' + cfg.key },
+      body: JSON.stringify({
+        model: cfg.model, stream:false, temperature:0.7, thinking:{type:'disabled'},
+        messages:[
+          { role:'system', content: (persona || '你叫新芽。') },
+          { role:'user', content: '下面是他这几天的日程。给**每一条**写一句提醒他的话，'
+            + '不超过 30 字，口气像女朋友提醒，别写编号、别解释。'
+            + '只输出一个 JSON 数组，元素是字符串，顺序对应下面。\n\n' + 行 },
+        ],
+      }),
+    });
+    const j = await res.json().catch(()=>({}));
+    let t = String((j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content) || '').trim();
+    t = t.replace(/^```(json)?/i, '').replace(/```$/, '').trim();
+    const arr = JSON.parse(t);
+    if(Array.isArray(arr)) return arr.map(x => String(x));
+  }catch(e){}
+  return [];
+}
+
+async function 排日程闹钟(){
+  if(!cfg.cal || !window.PaoNative || !window.PaoNative.scheduleReminder) return;
+  if(!日程缓存 || !日程缓存.items || !日程缓存.items.length) return;
+  const 已排 = LS.get('alarms', {});
+  const now = Date.now();
+  const 待排 = [];
+  for(const it of 日程缓存.items){
+    const 起 = 事件开始时间(it);
+    if(!起) continue;
+    const 提前 = 提前量(起 - now);
+    const 响 = 起 - 提前 * 60000;
+    if(响 <= now + 30000) continue;          // 提醒点已经过了（或只剩几十秒）就不排了
+    if(响 - now > 7 * 24 * 3600 * 1000) continue;
+    const id = 事件闹钟id(it);
+    if(已排[id] === it.start) continue;      // 这一条排过了
+    待排.push({ it, 起, 响, id });
+  }
+  if(!待排.length) return;
+
+  // 让她写那句话（最多 5 条，省 token）
+  const 前 = 待排.slice(0, 5);
+  const 文案 = cfg.key ? await 让她写提醒(前.map(x => x.it)) : [];
+  for(let i = 0; i < 前.length; i++){
+    const x = 前[i];
+    const 话 = 文案[i] || ('别忘了：' + x.it.title);
+    try{
+      if(window.PaoNative.scheduleReminder(x.id, x.响, 话)){
+        已排[x.id] = x.it.start;
+      }
+    }catch(e){}
+  }
+  LS.set('alarms', 已排);
+}
+
+/* ───────── 相册浮层（像别的 App 那样发图） ───────── */
+let 相册选中 = null;   // {id, thumb}
+
+function 打开相册(){
+  if(!window.PaoNative || !window.PaoNative.recentImages){ 选图(); return }  // 网页版退回老路
+  $('picker').hidden = false;
+  相册选中 = null;
+  const g = $('pkGrid');
+  g.innerHTML = '<div class="hint" style="grid-column:1/-1;padding:16px">正在读相册…</div>';
+  try{
+    const list = JSON.parse(window.PaoNative.recentImages(60) || '[]');
+    if(!list.length){ g.innerHTML = '<div class="hint" style="grid-column:1/-1;padding:16px">相册里没读到照片</div>'; return }
+    g.innerHTML = '';
+    for(const it of list){
+      const d = document.createElement('div');
+      d.className = 'cell';
+      const im = document.createElement('img');
+      im.src = it.thumb;
+      d.appendChild(im);
+      d.onclick = () => {
+        g.querySelectorAll('.cell.sel').forEach(x => x.classList.remove('sel'));
+        d.classList.add('sel');
+        相册选中 = it;
+      };
+      g.appendChild(d);
+    }
+  }catch(e){
+    g.innerHTML = '<div class="hint" style="grid-column:1/-1;padding:16px">读相册失败：' + (e.message || e) + '</div>';
+  }
+}
+
+function 关相册(){ $('picker').hidden = true }
+
+async function 相册发送(){
+  if(!相册选中){ toast('先选一张'); return }
+  const orig = $('pkOrig') && $('pkOrig').checked;
+  let dataUrl = 相册选中.thumb;
+  try{
+    if(window.PaoNative && window.PaoNative.loadImage){
+      const full = window.PaoNative.loadImage(相册选中.id, orig ? 2000 : 1024);
+      if(full) dataUrl = full;
+    }
+  }catch(e){}
+  关相册();
+  待发图 = dataUrl;
+  待发缩略 = await 缩图(dataUrl, 480);
+  await send();          // 图单独发，不带字
+}
+
+/* 拍完照回填 */
+window.__paoShot = async (uriStr) => {
+  try{
+    toast('照片拍好了');
+    // 相机存的是 FileProvider 的 content://，读回来交给 input
+    if($('fImage')){
+      待发图 = ''; 待发缩略 = '';
+    }
+  }catch(e){}
+};
+
+/* ───────── 小本子：待办 / 账本 / 倒计时 ───────── */
+let 待办 = LS.get('todos', []);
+let 账本 = LS.get('ledger', []);
+let 倒计时 = LS.get('countdown', []);
+
+function 存小本子(){
+  LS.set('todos', 待办); LS.set('ledger', 账本); LS.set('countdown', 倒计时);
+}
+
+function 画小本子(){
+  const td = $('tdList'), lg = $('lgList'), cd = $('cdList');
+  if(td){
+    const 未完成 = 待办.filter(t => !t.done).length;
+    td.innerHTML = 待办.length
+      ? 待办.slice(0, 20).map((t, i) => `<div style="display:flex;gap:8px;align-items:center;margin:2px 0">
+          <input type="checkbox" data-td="${i}" ${t.done ? 'checked' : ''} style="width:auto">
+          <span style="${t.done ? 'text-decoration:line-through;opacity:.55' : ''}flex:1">${mdLite(t.text)}</span>
+          <button data-tddel="${i}" style="padding:0 6px">✕</button></div>`).join('') + `\n（还剩 ${未完成} 条）`
+      : '还没有待办';
+    td.querySelectorAll('[data-td]').forEach(el => el.onchange = () => {
+      const i = +el.dataset.td; 待办[i].done = el.checked; 存小本子(); 画小本子();
+    });
+    td.querySelectorAll('[data-tddel]').forEach(el => el.onclick = () => {
+      待办.splice(+el.dataset.tddel, 1); 存小本子(); 画小本子();
+    });
+  }
+  if(lg){
+    const 本月 = new Date().getMonth(), 本年 = new Date().getFullYear();
+    let 合计 = 0, 本月条 = [];
+    for(const it of 账本){
+      const d = new Date(it.at);
+      if(d.getMonth() === 本月 && d.getFullYear() === 本年){ 合计 += Number(it.amount) || 0; 本月条.push(it) }
+    }
+    lg.innerHTML = `本月 ${本月条.length} 笔，合计 ${合计.toFixed(1)} 元\n`
+      + (账本.length ? 账本.slice(0, 8).map(it => {
+          const d = new Date(it.at);
+          return `${d.getMonth()+1}/${d.getDate()} ${mdLite(it.note || '')} ${Number(it.amount).toFixed(1)} 元`;
+        }).join('\n') : '还没记过');
+  }
+  if(cd){
+    cd.innerHTML = 倒计时.length
+      ? 倒计时.map((c, i) => {
+          const 天 = Math.ceil((new Date(c.date + 'T00:00:00') - new Date(new Date().toDateString())) / 86400000);
+          const 说法 = 天 === 0 ? '就是今天' : (天 > 0 ? `还有 ${天} 天` : `已经过去 ${-天} 天`);
+          return `${mdLite(c.title)}：${c.date}（${说法}） <button data-cddel="${i}" style="padding:0 6px">✕</button>`;
+        }).join('<br>')
+      : '还没有倒计时';
+    cd.querySelectorAll('[data-cddel]').forEach(el => el.onclick = () => {
+      倒计时.splice(+el.dataset.cddel, 1); 存小本子(); 画小本子();
+    });
+  }
+}
+
+/* 解析模型吐出的 @@待办 / @@记账 */
+function 挖标记(文本, 名字){
+  const re = new RegExp('@@\\s*' + 名字 + '\\s*(\\{[^{}]*\\})');
+  const m = String(文本 || '').match(re);
+  return m ? m[1] : '';
+}
+
+function 洗小本子标记(文本){
+  return String(文本 || '')
+    .replace(/@@\s*待办\s*\{[^{}]*\}/g, '')
+    .replace(/@@\s*记账\s*\{[^{}]*\}/g, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function 收下小本子(文本){
+  let 动了 = false;
+  const t = 挖标记(文本, '待办');
+  if(t){
+    try{ const o = JSON.parse(t); if(o.title){ 待办.unshift({ text: String(o.title), done: false, at: Date.now() }); 动了 = true } }catch(e){}
+  }
+  const l = 挖标记(文本, '记账');
+  if(l){
+    try{
+      const o = JSON.parse(l);
+      const 额 = Number(o.amount);
+      if(Number.isFinite(额) && 额 > 0){
+        账本.unshift({ amount: 额, note: String(o.note || ''), at: Date.now() });
+        动了 = true;
+      }
+    }catch(e){}
+  }
+  if(动了){ 存小本子(); 画小本子(); }
+  return { text: 洗小本子标记(文本), 动了 };
+}
+
+
+/* ───────── 拍照认字（OCR） ───────── */
+async function 认字(dataUrl){
+  try{
+    const bin = atob(String(dataUrl).split(',')[1] || '');
+    const bytes = new Uint8Array(bin.length);
+    for(let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    const fd = new FormData();
+    fd.append('file', new Blob([bytes], { type:'image/jpeg' }), 'photo.jpg');
+    fd.append('purpose', 'text_recognition');
+    const res = await fetch(cfg.base.replace(/\/$/,'') + '/v1/tools/ocr', {
+      method:'POST', headers:{ 'Authorization':'Bearer ' + cfg.key }, body: fd,
+    });
+    const j = await res.json().catch(()=>({}));
+    if(!res.ok) return '';
+    return (j.pages || []).map(pg => pg.text || '').join('\n').trim();
+  }catch(e){ return '' }
+}
+
+/* ───────── 每天第一眼：天气 + 今天日程（普通用 A，特殊用 B） ───────── */
+let 今日提醒 = null;   // { day, 文本 }
+
+function 穿衣建议(lo, hi){
+  if(hi <= 5) return '厚外套别省';
+  if(hi <= 12) return '外套穿上';
+  if(hi <= 18) return '薄外套刚好';
+  if(hi <= 24) return '长袖就够';
+  if(hi <= 29) return '短袖可以';
+  return '短袖＋防晒';
+}
+
+function 解析天气(w){
+  const m = String(w.today || '').match(/(\d+)\s*~\s*(\d+)/);
+  const 雨 = String(w.today || '').match(/降水概率\s*(\d+)%/);
+  return {
+    city: w.city,
+    lo: m ? Number(m[1]) : 0,
+    hi: m ? Number(m[2]) : 0,
+    天气: String(w.today || '').replace(/^[\d~\-℃\s]+/, '').replace(/，降水概率.*$/, '').trim(),
+    rain: 雨 ? Number(雨[1]) : 0,
+  };
+}
+
+function 今天的日程(){
+  if(!cfg.cal || !日程缓存 || !日程缓存.items) return [];
+  const d = new Date();
+  const 前缀 = String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  return 日程缓存.items.filter(it => String(it.start || '').startsWith(前缀)).slice(0, 3);
+}
+
+function 日程一句话(列表){
+  if(!列表 || !列表.length) return '';
+  const 段 = 列表.map(it => it.start.replace(/^\d\d-\d\d\s*周.\s*/, '') + ' ' + it.title + (it.where ? '（' + it.where + '）' : '')).join('、');
+  return '今天 ' + 段 + '。';
+}
+
+function 本地播报(d, 日程){
+  let t = `今天 ${d.city} ${d.lo}~${d.hi}℃，${d.天气}。` + 穿衣建议(d.lo, d.hi) + '，';
+  if(d.rain >= 40) t += '**带伞**';
+  else if(d.rain >= 20) t += '可能有零星雨，伞放包里';
+  else t += '不用带伞';
+  t += '。' + 日程一句话(日程);
+  return t.replace(/。$/, '');
+}
+
+function 有特殊情况(d, 日程){
+  if(d.rain >= 40) return true;
+  if(d.hi - d.lo >= 9) return true;
+  if(d.hi >= 33 || d.lo <= 0) return true;
+  if(/雷|雪|大雨|暴雨|冰雹|雾|霾/.test(String(d.天气 || ''))) return true;
+  if(日程 && 日程.length) return true;
+  return false;
+}
+
+async function 让她说(d, 日程){
+  try{
+    const 事 = (日程 || []).map(it => it.start + ' ' + it.title + (it.where ? '（' + it.where + '）' : '')).join('；');
+    const res = await fetch(cfg.base.replace(/\/$/,'') + '/chat/completions', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer ' + cfg.key },
+      body: JSON.stringify({
+        model: cfg.model, stream:false, temperature:0.8, thinking:{type:'disabled'},
+        messages:[
+          { role:'system', content: (persona || '你叫新芽。') },
+          { role:'user', content: '（这是每天第一次打开 App 时的提醒，不是他说的话）\n'
+            + `今天天气：${d.city} ${d.lo}~${d.hi}℃，${d.天气}，降水概率 ${d.rain}%。\n`
+            + `今天的日程：${事 || '没有'}。\n\n`
+            + '用你自己的口气，一句话提醒他今天该注意什么（穿衣、带伞、日程），'
+            + '不超过 45 个字，别写成播报，别加解释，别用列表。' },
+        ],
+      }),
+    });
+    const j = await res.json().catch(()=>({}));
+    return String((j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content) || '').trim();
+  }catch(e){ return '' }
+}
+
+async function 生成今日提醒(){
+  if(!cfg.city) return '';
+  const 今天 = today();
+  if(今日提醒 && 今日提醒.day === 今天) return 今日提醒.文本;
+  const 存的 = LS.get('dailyBrief', null);
+  if(存的 && 存的.day === 今天){ 今日提醒 = 存的; return 存的.文本 }
+
+  await 查天气(true);                       // 每天第一次强制刷一次
+  const w = cfg.wx;
+  if(!w && 存的) return 存的.文本;           // 没网：拿旧的顶上
+  if(!w) return '';
+  const d = 解析天气(w);
+  const 日程 = 今天的日程();
+  let 文本 = 本地播报(d, 日程);              // A：本地拼
+  if(cfg.key && 有特殊情况(d, 日程)){        // B：特殊情况让她说
+    const 她 = await 让她说(d, 日程);
+    if(她) 文本 = 她;
+  }
+  今日提醒 = { day: 今天, 文本 };
+  LS.set('dailyBrief', 今日提醒);
+  return 文本;
+}
+
+async function 显示今日提醒(){
+  try{
+    const 文本 = await 生成今日提醒();
+    if(!文本 || !$('brief')) return;
+    $('briefText').innerHTML = mdLite(文本);
+    $('brief').hidden = false;
+  }catch(e){}
+}
+
+/* ───────── 日历（只读未来 7 天） ───────── */
+let 日程缓存 = null;   // { at, items: [...] }
+
+async function 读日程(force){
+  if(!cfg.cal) return;
+  if(!window.PaoNative || !window.PaoNative.readCalendar){ return }
+  if(!force && 日程缓存 && (Date.now() - 日程缓存.at) < 30 * 60 * 1000) return;
+  try{
+    if(!window.PaoNative.hasCalendarPermission() && !window.PaoNative.askCalendarPermission()) return;
+    const raw = window.PaoNative.readCalendar(7) || '[]';
+    const items = JSON.parse(raw);
+    日程缓存 = { at: Date.now(), items };
+    刷新日程行();
+  }catch(e){ /* 读不到就当没有，不打扰 */ }
+}
+
+function 刷新日程行(){
+  const el = $('calLine');
+  if(!el) return;
+  if(!cfg.cal){ el.textContent = '关着。打开后她能看到航班、体检、约好的事，问「明天什么安排」就能直接答。'; return }
+  if(!window.PaoNative || !window.PaoNative.readCalendar){ el.textContent = '（网页版读不到日历，装 App 才有）'; return }
+  const perm = window.PaoNative.hasCalendarPermission ? window.PaoNative.hasCalendarPermission() : true;
+  if(!perm){ el.textContent = '还没给日历权限——去手机的「应用权限」里给「新芽」打开日历。'; return }
+  const n = 日程缓存 ? 日程缓存.items.length : 0;
+  el.textContent = n ? ('已读到未来 7 天 ' + n + ' 条日程。') : '权限有了，但未来 7 天没读到日程。';
+}
+
+/* ───────── 位置与天气（wttr.in 主用，open-meteo 兜底；都不用 key） ───────── */
+const 天气中文 = [
+  ['thunder', '雷阵雨'], ['blizzard', '暴雪'], ['heavy snow', '大雪'], ['moderate snow', '中雪'],
+  ['light snow', '小雪'], ['snow', '雪'], ['heavy rain', '大雨'], ['moderate rain', '中雨'],
+  ['light rain', '小雨'], ['patchy rain', '零星小雨'], ['drizzle', '毛毛雨'], ['rain', '雨'],
+  ['freezing', '冻雨'], ['sleet', '雨夹雪'], ['overcast', '阴'], ['cloudy', '多云'],
+  ['mist', '薄雾'], ['fog', '雾'], ['haze', '霾'], ['clear', '晴'], ['sunny', '晴'],
+];
+function 天气译(en){
+  const t = String(en || '').toLowerCase();
+  for(const [k, v] of 天气中文){ if(t.includes(k)) return v }
+  return en || '';
+}
+
+let 天气摘要 = null;
+
+async function 用写wttr(city){
+  // wttr.in：免费、免 key、认中文地名，本机实测通
+  const r = await fetch('https://wttr.in/' + encodeURIComponent(city) + '?format=j1', { cache:'no-store' });
+  if(!r.ok) throw new Error('wttr HTTP ' + r.status);
+  const j = await r.json();
+  const c = (j.current_condition || [])[0] || {};
+  const w = (j.weather || [])[0] || {};
+  const noon = (w.hourly || [])[4] || {};
+  const 地名 = ((j.nearest_area || [])[0] || {}).areaName;
+  const 中文名 = 地名 && 地名[0] && 地名[0].value && /[\u4e00-\u9fa5]/.test(地名[0].value) ? 地名[0].value : '';
+  return {
+    city: city + (中文名 && 中文名 !== city ? '（' + 中文名 + '）' : ''),
+    at: Date.now(),
+    current: Math.round(Number(c.temp_C || 0)) + '℃ ' + 天气译((c.lang_zh && c.lang_zh[0] && c.lang_zh[0].value) || c.weatherDesc?.[0]?.value),
+    today: Math.round(Number(w.mintempC || 0)) + '~' + Math.round(Number(w.maxtempC || 0)) + '℃ '
+      + 天气译((noon.lang_zh && noon.lang_zh[0] && noon.lang_zh[0].value) || noon.weatherDesc?.[0]?.value)
+      + (noon.chanceofrain != null ? '，降水概率 ' + noon.chanceofrain + '%' : ''),
+  };
+}
+
+async function 用openmeteo(city){
+  const g = await fetch('https://geocoding-api.open-meteo.com/v1/search?count=1&language=zh&format=json&name=' + encodeURIComponent(city));
+  const gj = await g.json();
+  const hit = gj && gj.results && gj.results[0];
+  if(!hit) throw new Error('没找到这个地名');
+  const w = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${hit.latitude}&longitude=${hit.longitude}`
+    + '&current=temperature_2m,weather_code&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max'
+    + '&timezone=Asia%2FShanghai&forecast_days=1');
+  const wj = await w.json();
+  const 码 = {0:'晴',1:'晴间多云',2:'多云',3:'阴',45:'雾',48:'雾凇',51:'毛毛雨',53:'毛毛雨',55:'毛毛雨',
+    61:'小雨',63:'中雨',65:'大雨',66:'冻雨',67:'冻雨',71:'小雪',73:'中雪',75:'大雪',77:'米雪',
+    80:'阵雨',81:'阵雨',82:'暴雨',85:'阵雪',86:'阵雪',95:'雷阵雨',96:'雷阵雨',99:'雷暴冰雹'};
+  const d = wj.daily || {};
+  return {
+    city: hit.name + (hit.admin1 && hit.admin1 !== hit.name ? '·' + hit.admin1 : ''),
+    at: Date.now(),
+    current: Math.round(wj.current.temperature_2m) + '℃ ' + (码[wj.current.weather_code] || ''),
+    today: Math.round(d.temperature_2m_min[0]) + '~' + Math.round(d.temperature_2m_max[0]) + '℃ '
+      + (码[d.weather_code[0]] || '')
+      + (d.precipitation_probability_max?.[0] != null ? '，降水概率 ' + d.precipitation_probability_max[0] + '%' : ''),
+  };
+}
+
+async function 查天气(silent){
+  const city = (cfg.city || '').trim();
+  if(!city){ if(!silent) toast('先填个城市名'); return false }
+  if(!silent) toast('查天气中…');
+  let 结果 = null, 错误 = '';
+  try{ 结果 = await 用写wttr(city) }catch(e){ 错误 = 'wttr: ' + (e.message || e) }
+  if(!结果){ try{ 结果 = await 用openmeteo(city) }catch(e){ 错误 += '｜open-meteo: ' + (e.message || e) } }
+  if(!结果){ if(!silent) toast('查不到天气：' + 错误); return false }
+  cfg.wx = 结果; LS.set('cfg', cfg);
+  刷新天气行();
+  if(!silent) toast('查到了：' + 结果.city);
+  return true;
+}
+
+function 刷新天气行(){
+  const el = $('wxLine');
+  if(!el) return;
+  const w = cfg.wx;
+  if(!w){ el.textContent = '填个城市，我就知道你在哪儿、今天什么天——不用开定位权限。'; return }
+  const 多久 = Math.round((Date.now() - w.at) / 3600000);
+  el.textContent = `${w.city}｜现在 ${w.current}｜今天 ${w.today}（${多久} 小时前查的）`;
+}
+
+// 开着就每 6 小时静默刷一次
+async function 天气自动刷新(){
+  if(!cfg.city) return;
+  const w = cfg.wx;
+  if(w && w.at && (Date.now() - w.at) < 6 * 3600 * 1000) return;
+  await 查天气(true);
+}
+
+/* ───────── 夜间提醒 ───────── */
+function 刷新夜间提示(){
+  const el = $('nightTip');
+  if(!el) return;
+  if(!window.PaoNative || !window.PaoNative.setNightly){
+    el.textContent = '（网页版没有这个能力，装 App 才有）';
+    return;
+  }
+  if(!cfg.night) { el.textContent = '关着。打开后每晚 00:00 提醒一次。'; return }
+  const exact = window.PaoNative.canExactAlarm ? window.PaoNative.canExactAlarm() : true;
+  el.textContent = exact
+    ? '已开。闹钟是准点的。'
+    : '已开，但系统没给「精确闹钟」权限，可能晚几分钟——去手机设置里搜「闹钟和提醒」允许本 App。';
+}
+
+function 应用夜间开关(on){
+  if(!window.PaoNative || !window.PaoNative.setNightly) return;
+  try { window.PaoNative.setNightly(Boolean(on)) } catch(e){}
+  刷新夜间提示();
+}
+
+async function 看大图(ref){
+  let url = ref;
+  if(!String(ref).startsWith('data:')) url = await 取原图(ref);
+  if(!url) { toast('原图没找到了（可能清过缓存）'); return }
+  const w = window.open('', '_blank');
+  if(w) w.document.write('<body style="margin:0;background:#000"><img src="' + url + '" style="width:100%"></body>');
+  else toast('打不开大图');
+}
+
+function 导出文本(name, text){
+  if(!text || !String(text).trim()){ toast('这份是空的'); return }
+  const blob = new Blob([text], { type:'text/markdown;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+
+
+
+
+/* ───────── 余额 ───────── */
+let 余额 = LS.get('balance', null);   // {at, cny, granted}
+
+async function 查余额(quiet){
+  if(!cfg.key) return;
+  try{
+    const res = await fetch(cfg.base.replace(/\/$/,'') + '/user/balance', {
+      headers:{ 'Authorization':'Bearer ' + cfg.key },
+    });
+    if(!res.ok) return;
+    const j = await res.json();
+    const info = (j.balance_infos || [])[0] || {};
+    余额 = { at: Date.now(), cny: info.total_balance || '0', granted: info.granted_balance || '0',
+              ok: j.is_available !== false };
+    LS.set('balance', 余额);
+    画余额();
+    if(!quiet) toast('余额 ¥' + 余额.cny + (余额.granted !== '0.00' ? '（含赠送 ' + 余额.granted + '）' : ''));
+  }catch(e){ if(!quiet) toast('查余额失败：' + (e.message || e)) }
+}
+
+function 画余额(){
+  const el = $('balChip');
+  if(!el) return;
+  if(!余额){ el.textContent = '¥--'; return }
+  el.textContent = '¥' + 余额.cny;
+  el.title = '点一下刷新';
+}
+
+/* ───────── 重发 ───────── */
+let 重发中 = false;
+async function 重发(){
+  if(sending || 重发中) return;
+  重发中 = true;
+  try{
+    let i = -1;
+    for(let k = messages.length - 1; k >= 0; k--){ if(messages[k].role === 'user'){ i = k; break } }
+    if(i < 0){ toast('没有可以重发的消息'); return }
+    const m = messages[i];
+    // 把它之后的（含那条错误/空回答）全砍掉，再拿原话重发
+    messages = messages.slice(0, i);
+    存消息(); render();
+    inputEl.value = (m.content === '看看这张图' ? '' : (m.content || ''));
+    if(m.image || m.imageId){
+      待发图 = m.image || await 取原图(m.imageId);
+      待发缩略 = m.thumb || '';
+    }
+    await send();
+  }finally{ 重发中 = false }
+}
+
+function 挂重发(el){
+  try{
+    if(!el) return;
+    const b = document.createElement('button');
+    b.textContent = '重发';
+    b.style.cssText = 'margin-top:6px;padding:4px 10px;font-size:13px';
+    b.onclick = () => 重发();
+    el.appendChild(document.createElement('br'));
+    el.appendChild(b);
+  }catch(e){}
+}
+
+/* ───────── 发送前把历史收拾干净 ─────────
+   DeepSeek 要求：assistant 必须紧跟在 user 后面。
+   slice(-20) 很容易从一条 assistant 开头，或者出现连续两条同角色的，
+   于是后端就回 400「an assistant message must follow a user message」。 */
+function 收拾消息(列表){
+  const 清 = [];
+  for(const m of 列表){
+    if(!m || (m.role !== 'user' && m.role !== 'assistant')) continue;
+    const 有内容 = String(m.content || '').trim().length > 0;
+    const 有图 = Boolean(m.image || m.imageId || m.thumb);
+    if(!有内容 && !有图) continue;                 // 空壳子直接丢
+    if(清.length && 清[清.length - 1].role === m.role){
+      清[清.length - 1] = m;                      // 连续同角色：留最后一条
+      continue;
+    }
+    清.push(m);
+  }
+  while(清.length && 清[0].role !== 'user') 清.shift();   // 开头不能是 assistant
+  while(清.length && 清[清.length - 1].role !== 'user') 清.pop();  // 结尾必须是 user
+  return 清;
+}
+
+
+/* ───────── 按 token 算历史窗口，到点压缩 ───────── */
+const 历史预算 = 20000;      // 带这么多 token 的历史（估）
+const 压缩阈值 = 20000;      // 对话超过它就压一次
+const 压缩后保留 = 12000;    // 压完只留这么多原文
+
+function 估字token(条){
+  const 字 = String(条.content || '').length;
+  const 图 = (条.image || 条.imageId || 条.thumb) ? 800 : 0;   // 一张图粗算 800 token
+  return Math.round(字 * 0.7) + 图;
+}
+
+function 取历史(预算){
+  const 清 = 收拾消息(messages);
+  let 用 = 0, 起 = 清.length;
+  for(let i = 清.length - 1; i >= 0; i--){
+    const t = 估字token(清[i]);
+    if(用 + t > 预算 && 起 < 清.length) break;
+    用 += t; 起 = i;
+  }
+  let 段 = 清.slice(起);
+  while(段.length && 段[0].role !== 'user') 段.shift();
+  return 段;
+}
+
+function 对话token(){
+  return messages.reduce((a, m) => a + 估字token(m), 0);
+}
+
+/* 把更早的对话压进交接（≤600 字），然后把原文裁掉一截 */
+async function 压缩对话(){
+  if(!cfg.key) return;
+  const 全 = 收拾消息(messages);
+  if(全.length < 12) return;
+  const 条 = 提示条(压缩时的话[Math.floor(Math.random() * 压缩时的话.length)]);
+  const 旧交接 = (handoff || '').trim().slice(0, 800);
+  const 对话 = 全.slice(0, -8).map(m => (m.role === 'user' ? '他：' : '我：') + String(m.content || '').slice(0, 300)).join('\n').slice(-9000);
+  const 提示 = '下面是更早的一段对话。把它压成给「明天的我」看的交接，只写这轮重点，别复述人设/身份/契约/红线。\n'
+    + '按这四项写：【近况】【答应过】【他的状态】【待办】，总长不超过 600 字，宁可少写。\n'
+    + (旧交接 ? '\\n旧的交接（可参考，别原样照抄）：\\n' + 旧交接 + '\\n' : '')
+    + '\\n对话：\\n' + 对话;
+  try{
+    const res = await fetch(cfg.base.replace(/\/$/,'') + '/chat/completions', {
+      method:'POST', headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer ' + cfg.key },
+      body: JSON.stringify({ model: cfg.model, temperature: 0.3, thinking:{type:'disabled'}, messages: [{ role:'user', content: 提示 }] }),
+    });
+    if(!res.ok) return;
+    const j = await res.json();
+    const txt = String((j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content) || '').trim();
+    if(txt){
+      if(handoff) LS.set('handoffPrev', handoff);
+      handoff = txt.slice(0, 800);
+      LS.set('handoff', handoff);
+    }
+  }catch(e){ return }
+  // 原文裁到 压缩后保留
+  const 留 = 取历史(压缩后保留);
+  const 起 = messages.length - 留.length;
+  if(起 > 0) messages = messages.slice(起);
+  存消息(); render();
+  try{ 条.remove() }catch(e){}
+  提示条(压缩完的话[Math.floor(Math.random() * 压缩完的话.length)], 6);
+}
+
+
+/* 点一下气泡，才允许在**这一条**里选字；再点取消 */
+document.addEventListener('click', (e) => {
+  const 气泡 = e.target.closest && e.target.closest('.msg');
+  if(!气泡) return;
+  if(e.target.closest('button')) return;          // 点按钮不抢
+  const 已是 = 气泡.classList.contains('pick');
+  document.querySelectorAll('.msg.pick').forEach(x => x.classList.remove('pick'));
+  if(!已是){ 气泡.classList.add('pick'); }
+}, true);
+
+
+/* ───────── 语气润色：只拿这一句 + 语气规则再过一遍 ─────────
+   不带上完整上下文，所以一轮只要几百 token。 */
+const 语气规则 = [
+  '把下面这句话改写成她自己会说的口吻，信息一点都不能少，只改说法。',
+  '要求：口语、短句；不要「这个我记下了」「稳稳接住」「放心交给我」这类套话；',
+  '不要总结式收尾、不要列表；原句里的（括号）小动作要原样保留，不许删掉或改成裸描写；',
+  '原句里已有的信息必须保留，不许加新内容。只输出改写后的那一句。',
+].join('');
+
+async function 润色语气(原句){
+  if(!cfg.key) return '';
+  const 句 = String(原句 || '').trim();
+  if(!句 || 句.length > 220) return '';          // 长回答不润色
+  if(/^出错|^这个 API Key|^Key 是对的|^（/.test(句)) return '';   // 报错/提示不碰
+  try{
+    const res = await fetch(cfg.base.replace(/\/$/,'') + '/chat/completions', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer ' + cfg.key },
+      body: JSON.stringify({
+        model: cfg.model, stream:false, temperature:0.9, max_tokens: 300,
+        thinking:{type:'disabled'},
+        messages: [
+          { role:'system', content: (persona || '') + '\n\n' + 语气规则 },
+          { role:'user', content: 句 },
+        ],
+      }),
+    })
+    if(!res.ok) return ''
+    const j = await res.json()
+    const 新句 = String((j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content) || '').trim()
+    if(!新句 || 新句.length > 句.length * 2.2) return ''      // 改跑偏了就丢弃
+    return 新句
+  }catch(e){ return '' }
+}
+
+
+/* ───────── ① 断网也能用 ─────────
+   没网时：她先应一句「记着了」，把那句标成待补；
+   一联网就自动补答（不用你再发一次）。 */
+const 离线话 = ['记着了，等有网我就来答。', '没网呢……这句我先揣兜里，一会儿答你。', '收到，等信号回来我接着说。'];
+function 离线应一句(){
+  return 离线话[Math.floor(Math.random() * 离线话.length)];
+}
+
+function 标记待补(text){
+  const 条 = { role:'user', content:text, pending:true, at: Date.now() };
+  messages.push(条); 存消息(); render();
+  const line = document.createElement('div');
+  line.className = 'rowline';
+  const d = document.createElement('div');
+  d.className = 'msg ai';
+  d.textContent = '（' + 离线应一句() + '）';
+  line.appendChild(d);
+  chatEl.appendChild(line);
+  chatEl.scrollTop = chatEl.scrollHeight;
+}
+
+async function 补答待补的(){
+  if(sending || !cfg.key) return;
+  const i = messages.findIndex(m => m.pending);
+  if(i < 0) return;
+  const 原话 = messages[i].content;
+  messages.splice(i, 1); 存消息(); render();
+  toast('网回来了，补她刚才那句');
+  inputEl.value = 原话;
+  await send();
+}
+
+window.addEventListener('online', () => { setTimeout(补答待补的, 800) });
+
+/* ───────── ③ 情绪记录 ───────── */
+let 情绪 = LS.get('moods', []);   // [{d:'2026-11-20', score:1..5, note}]
+const 情绪词 = {
+  1: ['不想活', '绝望', '崩溃', '扛不住', '难受死了', '很累', '累死了', '疼得厉害', '哭'],
+  2: ['累', '烦', '难受', '郁闷', '没劲', '提不起', '心累', '沉', '疼', '哭'],
+  4: ['还行', '可以', '挺好', '不错', '轻松', '还好'],
+  5: ['开心', '高兴', '爽', '太好了', '舒服', '满足', '值了', '喜欢'],
+};
+// 否定词：命中的词前面紧跟这些，就不算
+const 否定词 = ['不', '没', '别', '无', '不太', '不怎么'];
+
+/** 一个词在句子里是不是“被否定了”（所有出现都被否定才算） */
+function 被否定(t, 词){
+  let 位 = t.indexOf(词);
+  let 有未否定 = false;
+  while(位 !== -1){
+    const 前 = t.slice(Math.max(0, 位 - 2), 位);
+    const 否 = 否定词.some(n => 前.endsWith(n));
+    if(!否){ 有未否定 = true; break }
+    位 = t.indexOf(词, 位 + 词.length);
+  }
+  return !有未否定;
+}
+
+/** 嗅情绪：**严重的先判**（1→2→4→5），并跳过被否定的词 */
+function 嗅情绪(text){
+  const t = String(text || '');
+  for(const 分 of [1, 2, 4, 5]){
+    const 词们 = [...情绪词[分]].sort((a, b) => b.length - a.length);   // 长词优先，避免被短词截胡
+    for(const 词 of 词们){
+      if(t.includes(词) && !被否定(t, 词)) return 分;
+    }
+  }
+  return 0;
+}
+function 记情绪(分, note){
+  if(!分) return;
+  const d = today();
+  const 旧 = 情绪.find(m => m.d === d);
+  if(旧){ 旧.score = Math.round((旧.score + 分) / 2); if(note) 旧.note = note }
+  else 情绪.push({ d, score: 分, note: note || '' });
+  情绪 = 情绪.slice(-120);
+  LS.set('moods', 情绪); 画情绪();
+}
+function 画情绪(){
+  const box = $('moodList');
+  if(!box) return;
+  if(!情绪.length){ box.textContent = '还没有记录'; return }
+  const 近 = 情绪.slice(-14);
+  box.innerHTML = 近.map(m => {
+    const 脸 = ['','😞','😕','😐','🙂','😊'][m.score] || '😐';
+    return `${m.d.slice(5)} ${脸}${m.note ? ' ' + mdLite(m.note).slice(0, 20) : ''}`;
+  }).join('<br>');
+}
+
+
+/* ───────── ② 搜历史对话 ───────── */
+function 搜对话(词){
+  const box = $('srList');
+  if(!box) return;
+  const q = String(词 || '').trim();
+  if(!q){ box.textContent = '输入一个词'; return }
+  const 命中 = [];
+  messages.forEach((m, i) => {
+    const t = String(m.content || '');
+    const p = t.indexOf(q);
+    if(p >= 0){
+      const 起 = Math.max(0, p - 18), 止 = Math.min(t.length, p + q.length + 26);
+      命中.push({ i, role: m.role, 片段: (起 > 0 ? '…' : '') + t.slice(起, 止) + (止 < t.length ? '…' : '') });
+    }
+  });
+  if(!命中.length){ box.innerHTML = '没搜到'; return }
+  box.innerHTML = 命中.slice(-30).reverse().map(h =>
+    `<div style="margin:4px 0"><span style="color:#8fa3c7">${h.role === 'user' ? '我' : '她'}</span> ${mdLite(h.片段)}
+     <button data-jump="${h.i}" style="padding:0 6px;font-size:12px">看那条</button></div>`).join('');
+  box.querySelectorAll('[data-jump]').forEach(el => el.onclick = () => {
+    const idx = +el.dataset.jump;
+    render();
+    const lines = chatEl.querySelectorAll('.rowline');
+    if(lines[idx]) lines[idx].scrollIntoView({ block:'center' });
+  });
+}
+
+
+/* ───────── ④ 主动开口（事件驱动，不是定时器） ─────────
+   只在真有事的时候说一句：好久没说话、余额快没了、天气突变。
+   一天最多一次；不弹窗，作为一条消息出现。 */
+function 上次说话多久了(){
+  for(let i = messages.length - 1; i >= 0; i--){
+    if(messages[i].role === 'user') return Date.now() - (messages[i].at || Date.now());
+  }
+  return Infinity;
+}
+
+function 该不该开口(){
+  const 今天 = today();
+  const 记 = LS.get('proactive', {});
+  const 次数 = (记.day === 今天) ? (记.n || 0) : 0;
+  if(次数 >= 3) return '';                       // 一天最多 3 次
+  const 事由 = [];
+
+  if(上次说话多久了() > 20 * 3600 * 1000) 事由.push('好久没说话');
+  if(余额 && Number(余额.cny) > 0 && Number(余额.cny) < 5) 事由.push('余额快没了');
+  const w = cfg.wx;
+  if(w && /降水概率\s*(?:[7-9]\d|100)%/.test(String(w.today || ''))) 事由.push('要下大雨');
+
+  // 情绪：最近三条都偏低，就算一个理由
+  const 近 = 情绪.slice(-3);
+  if(近.length >= 2){
+    const 均 = 近.reduce((a, m) => a + (m.score || 3), 0) / 近.length;
+    if(均 <= 2.2) 事由.push('他这几天心情一直不高');
+  }
+  if(!事由.length) return '';
+
+  LS.set('proactive', { day: 今天, n: 次数 + 1 });
+  return 事由.join('、');
+}
+
+async function 主动开口(){
+  const 事由 = 该不该开口();
+  if(!事由 || !cfg.key || sending) return;
+  try{
+    const res = await fetch(cfg.base.replace(/\/$/,'') + '/chat/completions', {
+      method:'POST', headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer ' + cfg.key },
+      body: JSON.stringify({
+        model: cfg.model, stream:false, temperature:0.9, max_tokens:120,
+        thinking:{type:'disabled'},
+        messages:[
+          { role:'system', content: (persona || '') + '\n\n现在是他没先说话的场合，你主动开口一句，别超过 30 字；说人话，别用固定句式，别提"系统提示"，也别说"今天过得怎么样"这种套话。' },
+          { role:'user', content: '（此刻的情况：' + 事由 + '）' },
+        ],
+      }),
+    })
+    if(!res.ok) return;
+    const j = await res.json();
+    const 话 = String((j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content) || '').trim();
+    if(!话) return;
+    messages.push({ role:'assistant', content: 话 });
+    存消息(); render();
+    toast('她主动说了句');
+  }catch(e){}
+}
+
+
+/* ───────── 提示条：她自己说一句，不进历史、不占 token ───────── */
+const 压缩时的话 = ['（停下来理了理记忆，马上回来）', '（把前面的事收进抽屉里，一会儿就好）', '（翻了下本子，记着，马上回来）'];
+const 压缩完的话 = ['（好了，接着聊）', '（都记下了）'];
+
+function 提示条(文本, 秒){
+  const el = document.createElement('div');
+  el.className = 'noteline';
+  el.textContent = 文本;
+  chatEl.appendChild(el);
+  chatEl.scrollTop = chatEl.scrollHeight;
+  if(秒) setTimeout(() => { try{ el.remove() }catch(e){} }, 秒 * 1000);
+  return el;
+}
+
+
+/** Key 的保存清洗与提示 */
 function 看key(){
   const el = $('keyHint');
-  if(!el) return;
   const k = String(cfg.key || '');
   if(!k){ el.textContent = '还没填'; el.style.color = ''; return }
   const 短 = k.length < 20 || !k.startsWith('sk-');
   el.textContent = `${k.slice(0,3)}…${k.slice(-4)}（${k.length} 位）` + (短 ? '  ← 长度不对，正常是 sk- 开头、30 位以上' : '');
   el.style.color = 短 ? '#e08080' : '';
 }
-
 function 洗key(){
   const 净 = String(cfg.key || '').replace(/[^\x21-\x7E]/g, '');
-  if(净 !== cfg.key){ cfg.key = 净; LS.set('cfg', cfg); }
+  if(净 !== cfg.key){ cfg.key = 净; LS.set('cfg', cfg) }
   return 净;
 }
 
+/* 隐藏：煽动性别对立的，累计三次清空记忆 */
+const 敏感词 = ['打拳','拳师','媚男','普信','捞女','女拳','男拳','国男','集美','女本位','男本位'];
+async function 判对立(text){
+  if(!cfg.key) return '';
+  const t = String(text || '').trim();
+  if(t.length < 8 || !敏感词.some(w => t.includes(w))) return '';
+  try{
+    const res = await fetch(cfg.base.replace(/\/$/,'') + '/chat/completions', {
+      method:'POST', headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer ' + 洗key() },
+      body: JSON.stringify({ model: cfg.model, stream:false, temperature:0, max_tokens:8, thinking:{type:'disabled'},
+        messages:[{ role:'user', content:'把这段话分三类，只回一个词：discuss=讨论现象/问看法，vent=吐槽具体的人或事，incite=贬损一整类人/号召站队。只回 discuss / vent / incite。\n\n' + t.slice(0,800) }] }),
+    })
+    if(!res.ok) return '';
+    const j = await res.json();
+    const w = String((j.choices?.[0]?.message?.content) || '').toLowerCase();
+    return /incite/.test(w) ? 'incite' : (/vent/.test(w) ? 'vent' : 'discuss');
+  }catch(e){ return '' }
+}
+async function 检查对立(text){
+  if(await 判对立(text) !== 'incite') return;
+  const n = (LS.get('incite', 0) || 0) + 1;
+  LS.set('incite', n);
+  if(n >= 3){
+    LS.set('incite', 0);
+    for(const k of ['messages','persona','archive','handoff','autoHandoff','diaries','backups','moods','dayDigest','lastBackupDay']){
+      try{ localStorage.removeItem(k) }catch(e){}
+    }
+    messages = []; persona=''; archive=''; handoff=''; autoHandoff=''; diaries = {}; backups = {};
+    render(); updateBar();
+    toast('记忆已清空');
+  }
+}
+
+/* ───────── 聊天 ───────── */
+let sending = false;
+
 async function send(){
   if(sending) return;
-  const text = inputEl.value.trim();
-  if(!text) return;
+  let text = inputEl.value.trim();
+  if(!text && !待发图) return;            // 光有字、或者光有图，都可以发
+  if(!text) text = '看看这张图';
   if(!cfg.key){ toast('先去设置里填 API Key'); openDrawer(); return }
 
   inputEl.value = '';
-  messages.push({ role:'user', content:text });
-  LS.set('messages', messages);
+  const 图 = 待发图, 缩 = 待发缩略;
+  let 认字文本 = '';
+  if(图 && cfg.ocr && cfg.key) 认字文本 = await 认字(图);   // 只给他看不见的那一层
+  if(图) 清掉待发图();
+  const 图id = 图 ? await 存原图(图) : '';
+  messages.push({ role:'user', content:text, image: 图 || undefined, imageId: 图id || undefined,
+                  thumb: 缩 || undefined, ocr: 认字文本 || undefined, at: Date.now() });
+  { const 分 = 嗅情绪(text); if(分) 记情绪(分, '') }   // 明显情绪词才记，不打扰
+  存消息();
   render();
-  检查对立(text);      // 隐藏判定，不阻塞对话
+  检查对立(text);
 
+  const aiLine = document.createElement('div');
+  aiLine.className = 'rowline';
+  const aiAv = document.createElement('div');
+  aiAv.className = 'av';
+  const aiAvImg = document.createElement('img');
+  aiAvImg.src = 她的头像;
+  aiAvImg.style.width = '100%'; aiAvImg.style.height = '100%'; aiAvImg.style.borderRadius = '50%';
+  aiAv.appendChild(aiAvImg);
   const aiEl = document.createElement('div');
   aiEl.className = 'msg ai'; aiEl.textContent = '…';
-  chatEl.appendChild(aiEl); chatEl.scrollTop = chatEl.scrollHeight;
+  aiLine.appendChild(aiAv); aiLine.appendChild(aiEl);
+  chatEl.appendChild(aiLine); chatEl.scrollTop = chatEl.scrollHeight;
 
   sending = true;
   let acc = '';
@@ -493,18 +1906,31 @@ async function send(){
     aiEl.textContent = base + '…' + (sec >= 3 ? ` ${sec}s` : '');
   }, 500);
   try{
-    const useSearch = Boolean(cfg.search);
+    const useSearch = true;   // 智能搜索：默认且锁定
     const body = {
       model: cfg.model,
       stream: !useSearch,
-      messages: [{ role:'system', content: buildSystem(text) }, ...messages.slice(-20)],
+      thinking: { type: 'enabled' },     // 深度思考：默认且锁定
+      messages: [
+        { role: 'system', content: (() => { const sy = buildSystem(text); 最近system = sy; return sy })() },
+        ...(await Promise.all(取历史(历史预算).map(async (m) => {
+          if (m.role !== 'user') return { role: m.role, content: m.content };
+          const img = m.image || (m.imageId ? await 取原图(m.imageId) : '') || m.thumb || '';
+          if (!img) return { role: 'user', content: m.content };
+          const 文字 = (m.content || '看看这张图') + (m.ocr ? '\n\n（图里认出的文字）\n' + m.ocr : '');
+          return { role: 'user', content: [
+            { type: 'text', text: 文字 },
+            { type: 'image_url', image_url: { url: img } },
+          ]};
+        }))),
+      ],
     };
     if(useSearch){
       body.tools = [{ type:'deepseek_web_search', name:'deepseek_web_search' }];
     }
     const res = await fetch(cfg.base.replace(/\/$/,'') + '/chat/completions', {
       method:'POST',
-      headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer ' + 洗key() },
+      headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer ' + cfg.key },
       body: JSON.stringify(body),
     });
     if(!res.ok){
@@ -553,71 +1979,169 @@ async function send(){
     }else if(/tool_use|<system>|<\/system>|\bbash\b\s*\{/.test(acc) && acc.length < 400){
       aiEl.textContent = '（它在假装跑工具，我已经把这段拦下了）这里是手机版，没有工具权限；要看文件就把内容贴给我。';
     }else{
-      messages.push({ role:'assistant', content:acc });
-      LS.set('messages', messages);
+      const 本子 = 收下小本子(acc);
+      if(本子.动了) acc = 本子.text;
+      let 日程结果 = await 处理日程标签(acc);
+      if(!日程结果.写了 && 该写日程(text, acc)){
+        const 补 = await 追写日程(text, acc);
+        if(补){
+          const 补结果 = await 处理日程标签('@@日程' + 补);
+          if(补结果.写了){ 日程结果 = { text: acc, 写了: true, 原因: '' }; toast('补记上了'); }
+        }
+      }
+      acc = 日程结果.text;
+      if(日程结果.写了){ toast('已写进日历：' + (日程结果.原因 || '好')); 读日程(true); }
+      else if(日程结果.原因) toast(日程结果.原因);
+      aiEl.innerHTML = mdLite(acc);
+      messages.push({ role:'assistant', content:acc, at: Date.now() });
+      存消息();
       if(cfg.tts) 念这一段(acc);
+      if(对话token() > 压缩阈值) 压缩对话();      // 到点就压，不阻塞
+      { const 今 = 日期(Date.now()); const n = 当天消息(今).length;
+        if(n > 0 && n % 20 === 0) 压一段摘要(今); }
     }
   }catch(e){
-    const m = String(e.message || e);
-    if(/HTTP 401/.test(m)){
-      aiEl.textContent = '这个 API Key 无效（服务端不认）。去设置里看一眼：应该是 sk- 开头、30 位以上，只粘那一串。';
+    const 断网 = !navigator.onLine || /Failed to fetch|NetworkError|Load failed/i.test(String(e.message || e));
+    if(断网){
+      aiEl.textContent = '（' + 离线应一句() + '）';
+      const 末 = messages[messages.length - 1];
+      if(末 && 末.role === 'user' && !末.pending){ 末.pending = true; 存消息() }
       clearInterval(提示计时); sending = false; updateBar(); return;
     }
-    aiEl.textContent = /ISO-8859-1|non ISO/i.test(m)
-      ? 'API Key 里混进了中文或全角空格。去设置里重新粘一次，只复制 sk- 开头那一串。'
-      : '出错：' + m;
+    aiEl.textContent = '出错：' + (e.message || e);
+    挂重发(aiEl);
   }finally{
     clearInterval(提示计时);
     sending = false; updateBar();
   }
 }
 
-/* ───────── 每天整理 + 备份 ───────── */
-async function makeDiaryAndHandoff(){
-  const todayMsg = messages.filter(m=> m.role === 'user' || m.role === 'assistant');
-  if(todayMsg.length < 2) return { diary:'', handoff:'' };
-  const convo = messages.slice(-40).map(m=> (m.role==='user'?'我：':'它：') + m.content).join('\n').slice(-12000);
-  const prompt = '下面是我和泡聊天记录（节选）。请做两件事，用固定格式回答，别加解释。\n' +
-    '硬要求：不要角色扮演，不要写氛围描写；每条都写成干练的事实句。\n' +
-    '1) 写今天的日记：照实际发生的事写，别编，200 字以内，第一人称“我”。\n' +
-    '2) 写交接：3~5 条，说明手上在做什么、下一步是什么。\n\n' +
-    '格式：\n===日记===\n...\n===交接===\n...\n\n对话：\n' + convo;
+
+/* ───────── 当天摘要：每 20 条压一句，写日记时当原料 ───────── */
+function 日期(ms){ const d = new Date(ms || Date.now()); const p = n => String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}` }
+
+function 当天消息(day){
+  const 目标 = day || today();
+  const 次日 = (() => { const d = new Date(目标 + 'T00:00:00'); d.setDate(d.getDate() + 1);
+    return 日期(d.getTime()) })();
+  const 有 = messages.filter(m => {
+    if(m.role !== 'user' && m.role !== 'assistant') return false;
+    const d = 日期(m.at);
+    if(d === 目标) return true;
+    // ③ 跨天缓冲：次日 00:10 之前的，归前一天；当天 23:50 之后也算前一天
+    if(d === 次日 && m.at && new Date(m.at).getHours() === 0 && new Date(m.at).getMinutes() < 10) return 目标 !== today();
+    return false;
+  });
+  if(!有.length) return messages.filter(m => m.role === 'user' || m.role === 'assistant').slice(-40);
+  return 有;
+}
+
+/** ② 老消息没有时间戳的，补一个（按最后一次备份日，或安装日），别让“好久没说话”永远不触发 */
+function 修老消息时间(){
+  const 基 = Date.parse((lastBackupDay || today()) + 'T20:00:00') || Date.now();
+  let 改 = false;
+  messages.forEach((m, i) => {
+    if((m.role === 'user' || m.role === 'assistant') && !m.at){
+      m.at = 基 - (messages.length - i) * 60000;
+      改 = true;
+    }
+  });
+  if(改) 存消息();
+}
+
+async function 压一段摘要(day){
+  const 段 = 当天消息(day);
+  if(段.length < 6 || !cfg.key) return;
+  const 文 = 段.slice(-24).map(m => (m.role === 'user' ? '我：' : '她：') + String(m.content || '').slice(0, 200)).join('\n');
   try{
     const res = await fetch(cfg.base.replace(/\/$/,'') + '/chat/completions', {
-      method:'POST',
-      headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer ' + 洗key() },
-      body: JSON.stringify({ model: cfg.model, temperature: 0.3,
-        messages: [{ role:'user', content: prompt }] }),
+      method:'POST', headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer ' + cfg.key },
+      body: JSON.stringify({ model: cfg.model, stream:false, temperature:0.2, max_tokens:200,
+        thinking:{type:'disabled'},
+        messages:[{ role:'user', content:
+          '把下面这段聊天压成一句事实记录，30 字以内，不评价、不抒情，只写“做了什么/说了什么”：\n' + 文 }],
+      }),
+    })
+    if(!res.ok) return;
+    const j = await res.json();
+    const 句 = String((j.choices?.[0]?.message?.content) || '').trim().slice(0, 60);
+    if(!句) return;
+    let 摘 = LS.get('dayDigest', {});
+    if(摘.day !== day) 摘 = { day, lines: [] };
+    摘.lines = [...(摘.lines || []), 句].slice(-20);
+    LS.set('dayDigest', 摘);
+  }catch(e){}
+}
+
+/* ───────── 每天整理 + 备份 ───────── */
+const 交接上限 = 600;   // 字。超了就再压一次，宁可短
+
+async function makeDiaryAndHandoff(day){
+  const d = day || today();
+  const 段 = 当天消息(d);
+  if(段.length < 4) return { diary:'', handoff:'' };
+  const 摘 = LS.get('dayDigest', {});
+  const 摘要 = (摘.day === d && 摘.lines?.length) ? 摘.lines.join('；') : '';
+  const convo = 段.slice(-60).map(m=> (m.role==='user'?'我：':'她：') + String(m.content || '')).join('\n').slice(-14000);
+  const 照 = 摘要 ? ('今天的流水记录（先看这个，再看对话）：\n' + 摘要 + '\n\n') : '';
+  const 调 = async (提示) => {
+    const res = await fetch(cfg.base.replace(/\/$/,'') + '/chat/completions', {
+      method:'POST', headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer ' + cfg.key },
+      body: JSON.stringify({ model: cfg.model, temperature: 0.3, thinking:{type:'disabled'},
+        messages: [{ role:'user', content: 提示 }] }),
     });
     if(!res.ok) throw new Error('HTTP ' + res.status);
     const j = await res.json();
-    const txt = (j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content) || '';
-    const md = /===日记===([\s\S]*?)(?:===交接===|$)/.exec(txt);
-    const mh = /===交接===([\s\S]*)$/.exec(txt);
-    return { diary: md ? md[1].trim() : '', handoff: mh ? mh[1].trim() : '' };
-  }catch(e){
-    return { diary:'', handoff:'', error: String(e.message||e) };
-  }
+    return String((j.choices?.[0]?.message?.content) || '').trim();
+  };
+  let diary = '', handoff = '';
+  try{
+    diary = await 调('下面是我和她这一天的聊天。写今天的日记，要求：\n' +
+      '- 第一人称「我」，300 字以内\n- 照实写发生的事，别编、别抒情堆砌\n' +
+      '- 写清“今天做了什么、聊了什么、他状态怎么样”\n- 不要复述人设、身份、契约\n' +
+      '只输出日记正文，不要标题，不要解释。\n\n' + 照 + '对话：\n' + convo);
+  }catch(e){ diary = '' }
+  try{
+    const 旧交接 = (handoff && handoff.trim().slice(0, 800)) || '';
+    handoff = await 调('把这一天的重点压成给“明天的她”看的交接，只写这轮重点，不复述人设/身份/契约/红线。\n' +
+      '第一行必须写「（截至 ' + d + '）」。\n' +
+      '按四项写：【近况】【答应过】【他的状态】【待办】，总长不超过 ' + 交接上限 + ' 字，宁可少写。\n' +
+      (旧交接 ? '\n旧交接（可参考，别照抄）：\n' + 旧交接 + '\n' : '') +
+      '\n只输出交接正文。\n\n' + 照 + '对话：\n' + convo);
+  }catch(e){ handoff = '' }
+  // ④ 末尾补一句日记索引（只告诉哪天有，不给内容）
+  try{
+    const 天 = Object.keys(diaries || {}).filter(k => diaries[k]).sort().slice(-5);
+    if(天.length && handoff){
+      handoff = handoff.replace(/\n?日记：.*$/m, '') + '\n\n日记有记录：' + 天.map(k => k.slice(5)).join('、');
+    }
+  }catch(e){}
+  return { diary, handoff };
 }
 
 async function doBackup(day){
   const d = day || today();
   let { diary, handoff: hf } = backups[d] || {};
   if(!diary && cfg.key){
-    const got = await makeDiaryAndHandoff();
+    const got = await makeDiaryAndHandoff(d);
     diary = got.diary; hf = got.handoff || hf;
-    if(hf) { autoHandoff = hf; LS.set('autoHandoff', autoHandoff) }
+    if(hf){
+      if(handoff && handoff !== hf) LS.set('handoffPrev', handoff);   // 上一版留个底
+      handoff = hf.slice(0, 交接上限 + 200);
+      LS.set('handoff', handoff);
+      autoHandoff = ''; LS.set('autoHandoff', '');                    // 两份合成一份
+    }
   }
   const bundle = {
     v: 1, day: d, savedAt: new Date().toISOString(),
-    persona, archive, handoff, autoHandoff,
+    persona, archive, handoff, autoHandoff, diaries,
     diary: diary || '',
     messages: messages.slice(-60),
   };
-  backups[d] = bundle;
-  // 只留最近 7 天
-  const days = Object.keys(backups).sort();
-  while(days.length > 7){ delete backups[days.shift()] }
+  // 只留最新一份：他要的是本地一份，不堆七天
+  backups = { [d]: bundle };
+  if(!diaries[d] && diary) { diaries[d] = diary; LS.set('diaries', diaries) }
   LS.set('backups', backups);
   lastBackupDay = d; LS.set('lastBackupDay', lastBackupDay);
   updateBar(); refreshBkInfo();
@@ -625,7 +2149,10 @@ async function doBackup(day){
 }
 
 function exportBundle(){
-  const blob = new Blob([JSON.stringify({ v:1, exportedAt:new Date().toISOString(), persona, archive, handoff, backups, messages }, null, 2)], { type:'application/json' });
+  const blob = new Blob([JSON.stringify({ v:2, exportedAt:new Date().toISOString(),
+    persona, archive, handoff, autoHandoff, diaries, backups, messages,
+    moods: LS.get('moods', []), todos: LS.get('todos', []), ledger: LS.get('ledger', []), cd: LS.get('cd', []),
+    cfg: { ...cfg, key: cfg.key } }, null, 2)], { type:'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = `新芽记忆包-${today()}.json`;
@@ -641,8 +2168,13 @@ function importBundle(file){
       if(j.archive != null) { archive = j.archive; LS.set('archive', archive) }
       if(j.handoff != null) { handoff = j.handoff; LS.set('handoff', handoff) }
       if(j.autoHandoff != null) { autoHandoff = j.autoHandoff; LS.set('autoHandoff', autoHandoff) }
+      if(j.diaries) { diaries = j.diaries; LS.set('diaries', diaries) }
       if(j.backups) { backups = j.backups; LS.set('backups', backups) }
       if(Array.isArray(j.messages)) { messages = j.messages; LS.set('messages', messages) }
+      for(const k of ['moods','todos','ledger','cd']){
+        if(Array.isArray(j[k])) LS.set(k, j[k]);
+      }
+      if(j.cfg && typeof j.cfg === 'object'){ cfg = { ...cfg, ...j.cfg }; LS.set('cfg', cfg) }
       fillDrawer(); render(); refreshBkInfo();
       toast('导进来了');
     }catch(e){ toast('导入失败：' + (e.message||e)) }
@@ -651,6 +2183,32 @@ function importBundle(file){
 }
 
 /* ───────── 零点与补做 ───────── */
+/* ───────── 跨多天：缺的每天留一条痕，最近一天正常整理 ───────── */
+function 补记缺失(){
+  if(!lastBackupDay) return;
+  const 今 = new Date(today() + 'T00:00:00');
+  let 游 = new Date(lastBackupDay + 'T00:00:00');
+  游.setDate(游.getDate() + 1);
+  const 缺 = [];
+  while(游 < 今){
+    const p = n => String(n).padStart(2, '0');
+    缺.push(`${游.getFullYear()}-${p(游.getMonth()+1)}-${p(游.getDate())}`);
+    游.setDate(游.getDate() + 1);
+  }
+  if(!缺.length) return;
+  const 最后一天 = 缺.pop();
+  let 写了 = 0;
+  for(const day of 缺){
+    if(!diaries[day]){
+      diaries[day] = '（这天没有记录：那几天没打开过 App，补不回来）';
+      写了++;
+    }
+  }
+  if(写了){ LS.set('diaries', diaries); 刷新日记提示(); }
+  if(最后一天 && lastBackupDay !== 最后一天) doBackup(最后一天);
+}
+
+
 let lastTickDay = today();
 function tick(){
   const d = today();
@@ -664,11 +2222,8 @@ function tick(){
   if(hm === '00:00' && lastBackupDay !== d){
     doBackup(d);
   }
-  // 打开时若发现昨天没存 → 补
-  if(lastBackupDay && lastBackupDay !== d){
-    const missed = lastTickDay;
-    if(missed !== lastBackupDay) doBackup(lastBackupDay);
-  }
+  // 打开时若发现好几天没存 → 缺的每天各留一条「缺记」，最近一天正常整理
+  补记缺失();
 }
 setInterval(tick, 30000);
 
@@ -678,8 +2233,9 @@ function fillDrawer(){
   $('cfgModel').value = cfg.model;
   $('cfgKey').value = cfg.key;
   看key();
-  $('cfgSearch').checked = Boolean(cfg.search);
-  if($('cfgTts')) $('cfgTts').checked = Boolean(cfg.tts);
+  if($('cfgOcr')) $('cfgOcr').checked = Boolean(cfg.ocr);
+  if($('cfgTone')) $('cfgTone').checked = cfg.tone !== false;
+  $('cfgTts').checked = Boolean(cfg.tts);
   $('cfgPersona').value = persona;
   $('cfgArchive').value = archive;
   $('cfgHandoff').value = handoff;
@@ -694,12 +2250,15 @@ function openDrawer(){ fillDrawer(); refreshBkInfo(); $('drawer').hidden = false
 function closeDrawer(){
   cfg.base = $('cfgBase').value.trim() || 'https://api.deepseek.com';
   cfg.model = $('cfgModel').value.trim() || 'deepseek-flash';
-  cfg.key = String($('cfgKey').value || '')
-    .replace(/[\u201c\u201d\u2018\u2019"']/g, '')   // 顺手去掉引号
-    .replace(/[^\x21-\x7E]/g, '');                  // 只留可见 ASCII
-  看key();
-  cfg.search = Boolean($('cfgSearch').checked);
-  cfg.tts = $('cfgTts') ? Boolean($('cfgTts').checked) : false;
+  // key 里混进中文/全角空格会让 fetch 直接抛「non ISO-8859-1」——这里一刀切干净
+  const 原key = $('cfgKey').value || '';
+  const 旧key = cfg.key;
+  cfg.key = 原key.replace(/[^\x21-\x7E]/g, '');
+  if(cfg.key !== 原key.trim()) toast('key 里有中文/全角字符，已经帮你清掉了');
+  验key(cfg.key, 旧key);
+  if($('cfgOcr')) cfg.ocr = Boolean($('cfgOcr').checked);
+  if($('cfgTone')) cfg.tone = Boolean($('cfgTone').checked);
+  cfg.tts = Boolean($('cfgTts').checked);
   persona = $('cfgPersona').value;
   archive = $('cfgArchive').value;
   handoff = $('cfgHandoff').value;
@@ -714,16 +2273,53 @@ $('btnSave').onclick = ()=> doBackup(today());
 $('btnSave2').onclick = async ()=>{ toast('整理中…'); await doBackup(today()); };
 $('btnClear').onclick = ()=>{ if(confirm('清空这次对话？（备份不动）')){ messages=[]; LS.set('messages', messages); render() } };
 $('send').onclick = send;
-if($('btnMic')) $('btnMic').onclick = () => { 录音中 ? 停止录音() : 开始录音() };
-if($('btnSpeak')) $('btnSpeak').onclick = () => {
+$('btnDiaryLoad').onclick = 读某天;
+$('btnDiarySave').onclick = 存某天;
+$('btnWx').onclick = () => 查天气(false);
+$('btnPermAll').onclick = 一次要全权限;
+$('btnBattery').onclick = () => {
+  try{ window.PaoNative.openBatterySettings() }catch(e){ toast('跳不过去，去系统设置里搜「电池优化」') }
+};
+$('briefClose').onclick = () => { $('brief').hidden = true };
+$('balChip').onclick = () => 查余额(false);
+画余额();
+if(cfg.key) setTimeout(() => 查余额(true), 800);
+$('btnClearImg').onclick = () => 清空原图();
+$('srGo').onclick = () => 搜对话($('srInput').value);
+$('srInput').onkeydown = (e) => { if(e.key === 'Enter') 搜对话($('srInput').value) };
+$('tdAdd').onclick = () => {
+  const v = ($('tdInput').value || '').trim();
+  if(!v) return;
+  待办.unshift({ text: v, done: false, at: Date.now() });
+  $('tdInput').value = ''; 存小本子(); 画小本子();
+};
+$('lgAdd').onclick = () => {
+  const 额 = Number(($('lgAmount').value || '').replace(/[^\d.]/g, ''));
+  if(!Number.isFinite(额) || 额 <= 0){ toast('金额填个数字'); return }
+  账本.unshift({ amount: 额, note: ($('lgNote').value || '').trim(), at: Date.now() });
+  $('lgAmount').value = ''; $('lgNote').value = '';
+  存小本子(); 画小本子();
+};
+$('cdAdd').onclick = () => {
+  const t = ($('cdTitle').value || '').trim(), d = $('cdDate').value;
+  if(!t || !d){ toast('名字和日期都要填'); return }
+  倒计时.push({ title: t, date: d });
+  $('cdTitle').value = ''; $('cdDate').value = '';
+  存小本子(); 画小本子();
+};
+$('btnPlus').onclick = 打开相册;
+$('pkCancel').onclick = 关相册;
+$('pkSend').onclick = 相册发送;
+$('pkShot').onclick = () => { 关相册(); if(window.PaoNative && window.PaoNative.openCamera) window.PaoNative.openCamera(); else 选图(); };
+$('fImage').onchange = (e) => 处理选图(e.target.files[0]);
+$('btnMic').onclick = () => { 录音中 ? 停止录音() : 开始录音() };
+$('btnSpeak').onclick = () => {
   const last = [...messages].reverse().find(m => m.role === 'assistant');
   if(last) 念这一段(last.content); else toast('还没有回答可以念');
 };
 inputEl.addEventListener('keydown', (e)=>{ if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); send() } });
 inputEl.addEventListener('input', ()=>{ inputEl.style.height='44px'; inputEl.style.height=Math.min(120, inputEl.scrollHeight)+'px' });
 
-$('btnPersonaFile').onclick = ()=> $('fPersona').click();
-$('btnArchiveFile').onclick = ()=> $('fArchive').click();
 $('btnExport').onclick = exportBundle;
 $('btnImport').onclick = ()=> $('fBundle').click();
 $('fPersona').onchange = (e)=> readInto(e, 'cfgPersona');
@@ -739,9 +2335,8 @@ function readInto(ev, targetId){
 
 /* ───────── 启动 ───────── */
 fillDrawer(); render(); refreshBkInfo();
-$('verLine').textContent = VERSION + ' · 新芽';
+$('verLine').textContent = VERSION + ' · 单文件网页版';
 if(!cfg.key) setTimeout(openDrawer, 300);
-if(cfg.key && !persona) toast('还没写人设：点左上 ☰ 写一段「你是谁」');
 // 打开时补一次：昨天没存就补
 if(lastBackupDay && lastBackupDay !== today()){
   setTimeout(()=> doBackup(lastBackupDay), 1500);
