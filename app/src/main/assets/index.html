@@ -191,6 +191,14 @@
   <div class="row"><button id="btnClearImg">清空原图</button></div>
   <div class="hint">只保留最近 3 张原图（重发用）；更早的会自动删掉，气泡里还有缩略图。</div>
 
+  <h3>账本</h3>
+  <div class="row">
+    <input id="lgAmount" type="text" placeholder="金额" style="flex:0 0 90px">
+    <input id="lgNote" type="text" placeholder="花在哪儿" style="flex:1">
+    <button id="lgAdd">记一笔</button>
+  </div>
+  <div id="lgList" class="hint"></div>
+
   <h3>搜历史对话</h3>
   <div class="row">
     <input id="srInput" type="text" placeholder="搜个词试试，比如 体检 / 奶茶" style="flex:1">
@@ -230,7 +238,7 @@
 <script>
 "use strict";
 
-const VERSION = 'v2.0.1';
+const VERSION = 'v2.0.2';
 
 /* ───────── 存储 ───────── */
 const LS = {
@@ -357,9 +365,11 @@ const 他的头像 = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAABgCAIA
 
 const ENV = [
   '【你能做什么】聊天、出主意、联网查实时信息、看图认字、记住聊过的事。',
-  '【你不能做什么】**不能写日历、不能记待办、不能记账、不能定闹钟**——这个版本没有那些功能，一个都没有。',
+  '【你不能做什么】**不能写日历、不能记待办、不能定闹钟**——这个版本没有那些功能。',
+  '【记账】记账是有的。他说花了多少（「今天吃饭 38」「打车 25」），正文正常说完，**另起一行**写：@@记账{"amount":38,"note":"吃饭"}；金额只留数字，不要解释，不要放进代码块。',
+  '他说「记一下花销」「这笔记上」也照这个写；不确定金额就先问一句。',
   '他说「帮我记个日程」「记个待办」「记一笔账」的时候，**照实说做不到**，别答应、别假装记下了；可以说「这个版本没有日历，你手机自带的日历里记一下？」',
-  '不要输出任何 @@ 开头的标记，也不要输出 JSON。',
+  '除了 @@记账 那一行，不要输出别的 @@ 标记，也不要输出其它 JSON。',
   '【运行环境】你现在在手机上的一个极简聊天网页里。',
   '除了一件事：**智能搜索是开着的**，需要实时信息（新闻、价格、版本号这类）就直接调用 deepseek_web_search 去查，不用问他要不要开。',
   '除此以外你没有工具：没有文件系统、没有终端、不能执行命令，也看不到他电脑上的文件。',
@@ -2231,6 +2241,7 @@ function fillDrawer(){
   $('cfgModel').value = cfg.model;
   $('cfgKey').value = cfg.key;
   看key();
+  画小本子();
   if($('cfgOcr')) $('cfgOcr').checked = Boolean(cfg.ocr);
   if($('cfgTone')) $('cfgTone').checked = cfg.tone !== false;
   $('cfgTts').checked = Boolean(cfg.tts);
