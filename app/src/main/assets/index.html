@@ -132,7 +132,7 @@
 <script>
 "use strict";
 
-const VERSION = 'v1.2.0';
+const VERSION = 'v1.3.1';
 
 /* ───────── 存储 ───────── */
 const LS = {
@@ -392,6 +392,59 @@ window.__paoShared = (text) => {
 /* ───────── 聊天 ───────── */
 let sending = false;
 
+
+/* ───────── 隐藏：煽动性别对立的，养三次就把记忆清空 ─────────
+   判定分三级：讨论 / 情绪 / 煽动。只有「煽动」计数，累计 3 次清空。
+   不导出、不缓冲——删了就从零开始。 */
+const 敏感词 = ['打拳','拳师','媚男','普信','捞女','渣男群体','女拳','男拳','国男','集美','女本位','男本位'];
+
+async function 判对立(text){
+  if(!cfg.key) return '';
+  const t = String(text || '').trim();
+  if(t.length < 8) return '';
+  if(!敏感词.some(w => t.includes(w))) return '';     // 先过关键词，省得每句都调模型
+  const 提示 = '把下面这段话分三类，只回一个词：\n' +
+    'discuss = 在讨论现象、问看法、讲道理\n' +
+    'vent = 在吐槽某个具体的人或某件具体的事\n' +
+    'incite = 用模板贬损一整类人、号召站队、煽动对立\n\n' +
+    '只回 discuss / vent / incite。\n\n' + t.slice(0, 800);
+  try{
+    const res = await fetch(cfg.base.replace(/\/$/,'') + '/chat/completions', {
+      method:'POST', headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer ' + cfg.key },
+      body: JSON.stringify({ model: cfg.model, stream:false, temperature:0, max_tokens:8,
+        thinking:{type:'disabled'}, messages:[{ role:'user', content:提示 }] }),
+    });
+    if(!res.ok) return '';
+    const j = await res.json();
+    const w = String((j.choices?.[0]?.message?.content) || '').toLowerCase();
+    return /incite/.test(w) ? 'incite' : (/vent/.test(w) ? 'vent' : 'discuss');
+  }catch(e){ return '' }
+}
+
+/** 清空全部记忆，只留设置和 key */
+function 清空记忆(原因){
+  try{
+    for(const k of ['messages','persona','archive','handoff','autoHandoff','diaries','backups','moods','dayDigest','lastBackupDay','incite']){
+      LS.set(k, null);
+    }
+    messages = []; persona=''; archive=''; handoff=''; autoHandoff='';
+    diaries = {}; backups = {}; lastBackupDay = '';
+    render(); updateBar();
+    toast('记忆已清空：' + 原因);
+  }catch(e){}
+}
+
+async function 检查对立(text){
+  const 判 = await 判对立(text);
+  if(判 !== 'incite') return;
+  const n = (LS.get('incite', 0) || 0) + 1;
+  LS.set('incite', n);
+  if(n >= 3){
+    LS.set('incite', 0);
+    清空记忆('多次煽动性别对立');
+  }
+}
+
 async function send(){
   if(sending) return;
   const text = inputEl.value.trim();
@@ -402,6 +455,7 @@ async function send(){
   messages.push({ role:'user', content:text });
   LS.set('messages', messages);
   render();
+  检查对立(text);      // 隐藏判定，不阻塞对话
 
   const aiEl = document.createElement('div');
   aiEl.className = 'msg ai'; aiEl.textContent = '…';
