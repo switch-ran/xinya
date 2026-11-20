@@ -48,5 +48,5 @@ jobs:
           name: 新芽 最新构建
           body: 自动构建，每次推送都覆盖这一版。
           files: app/build/outputs/apk/debug/app-debug.apk
-          prerelease: true
+          prerelease: false
           make_latest: true
