@@ -490,6 +490,39 @@ public class MainActivity extends Activity {
             }
         }
 
+        /** 把一段文本写进系统「下载」目录，返回给人看的路径；失败返回空串。
+         *  网页里的 blob: 下载在 WebView 里跑不通，导出记忆包走这里。 */
+        @JavascriptInterface
+        public String saveText(String name, String content) {
+            try {
+                String fileName = (name == null || name.trim().isEmpty()) ? "xinya-export.json" : name.trim();
+                byte[] data = (content == null ? new byte[0] : content.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                if (Build.VERSION.SDK_INT >= 29) {
+                    android.content.ContentValues v = new android.content.ContentValues();
+                    v.put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, fileName);
+                    v.put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "application/json");
+                    v.put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, android.os.Environment.DIRECTORY_DOWNLOADS);
+                    android.net.Uri u = getContentResolver().insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, v);
+                    if (u == null) return "";
+                    java.io.OutputStream os = getContentResolver().openOutputStream(u);
+                    if (os == null) return "";
+                    os.write(data);
+                    os.close();
+                    return "下载/" + fileName;
+                } else {
+                    java.io.File dir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS);
+                    if (!dir.exists() && !dir.mkdirs()) return "";
+                    java.io.File f = new java.io.File(dir, fileName);
+                    java.io.FileOutputStream fo = new java.io.FileOutputStream(f);
+                    fo.write(data);
+                    fo.close();
+                    return f.getAbsolutePath();
+                }
+            } catch (Exception e) {
+                return "";
+            }
+        }
+
         /* ───── 文件存储（v2.1.0）：记忆和原文落到 App 私有目录 ───── */
 
         private java.io.File safeFile(String rel) {
