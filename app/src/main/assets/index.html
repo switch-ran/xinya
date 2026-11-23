@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#0b1220">
-<title>泡泡 · 手机版</title>
+<title>新芽</title>
 <style>
   :root{
     --bg:#0b1220; --fg:#e8eefc; --dim:#8fa3c7; --line:rgba(255,255,255,.12);
@@ -101,8 +101,7 @@
 
 <header>
   <button id="btnMenu" aria-label="设置">☰</button>
-  <div class="title">泡泡</div>
-  <button id="btnSpeak" title="念最后一条回答">🔊</button>
+  <div class="title" id="appTitle">新芽</div>
   <button id="balChip" title="点一下刷新" style="font-size:13px;padding:6px 8px">¥--</button>
   <button id="btnSave" title="现在存一下">存</button>
 </header>
@@ -177,7 +176,7 @@
     <input id="cfgCity" type="text" placeholder="城市名，比如 郑州 / 北京" style="flex:1">
     <button id="btnWx">查天气</button>
   </div>
-  <div class="hint" id="wxLine">填个城市，本鱼就知道你在哪儿、今天什么天——不用开定位权限。</div>
+  <div class="hint" id="wxLine">填个城市，她就能知道你在哪儿、今天什么天——不用开定位权限。</div>
 
 
 
@@ -272,7 +271,7 @@
 <script>
 "use strict";
 
-const VERSION = 'v2.1.0';
+const VERSION = 'v2.1.1';
 
 /* ───────── 存储 ───────── */
 const LS = {
@@ -320,6 +319,7 @@ function 骨架文本(){
     '\n你没有人设剧本：你对人、对事的理解全写在下面的档案里，档案怎么长，你就怎么变；档案里没有的，别编。';
 }
 function 刷新人设(){
+  const t = $('appTitle'); if(t) t.textContent = (骨架.名字 || '新芽').trim() || '新芽';
   persona = 骨架文本() + (档案文本() ? '\n\n' + 档案文本() : '');
   LS.set('骨架', 骨架); LS.set('档案', 档案); LS.set('persona', persona);
 }
@@ -351,7 +351,7 @@ const 日记路径 = (d) => `她写的日记/${d}.md`;
 function 原文行(m){
   const t = new Date(m.at || Date.now());
   const p = n => String(n).padStart(2, '0');
-  const 谁 = m.role === 'user' ? '肉球主人' : '本鱼';
+  const 谁 = m.role === 'user' ? '用户' : '你';
   let 文 = String(m.content || '');
   if(m.ocr) 文 += '\n（图里认出：' + String(m.ocr).replace(/\n/g, ' ') + '）';
   return `${p(t.getHours())}:${p(t.getMinutes())} ${谁}：${文}\n`;
@@ -525,21 +525,14 @@ const 她的头像 = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAABgCAIA
 const 他的头像 = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAABgCAIAAABt+uBvAAAACXBIWXMAAAABAAAAAQBPJcTWAAAArUlEQVR4nO3QQQ2AMADAwNmbAqTxxAEaccCHkBVySQU0N+bcdNNYfhAPECBAgACFAwQIECBA4QABAgQIUDhAgAABAhQOECBAgH4NtB/nqwECBAgQIECAAAECBAgQIECAAAECBAgQIECAAAECBAgQIECAAAECBGgd0NcDBAgQIEDhAAECBAhQOECAAAECFA4QIECAAIUDBAgQIEDhAAECBAhQOECAAAECFA4QoGdd6auyHTV9Tk8AAAAASUVORK5CYII=';
 
 const ENV = [
-  '【记日程】他能让你把事写进手机日历。要记的时候，正文正常说完，最后**另起一行**只写这个：',
-  '@@日程{"title":"标题","start":"YYYY-MM-DD HH:mm","minutes":60,"where":"地点（可空）","note":"备注（可空）"}',
-  '就「@@日程」四个字符加一行 JSON，**不要用任何标签、不要 <invoke>、不要 parameter、不要 DSML**，写完就结束。',
-  '时间按手机本地时间算；不确定具体钟点就先问一句，别自己编。闲聊提到的事、不要写。',
-  '他说「记一下」「帮我记」「加到日程」这类，**必须当场写这一行**；只口头答应「记好啦」而不写，算没做。',
-  '【待办】他说「记个待办」「提醒我买…」这种不用定时间的，另起一行写：@@待办{"title":"买牙膏"}',
   '【记账】他说花了多少（「今天吃饭 38」「打车 25」），另起一行写：@@记账{"amount":38,"note":"吃饭"}；金额只留数字。',
-  '这三个标记都**不要解释、不要放进代码块**；没有就一个字都别写。',
+  '这个标记**不要解释、不要放进代码块**；没有就一个字都别写。',
   '【运行环境】你现在在手机上的一个极简聊天网页里。',
   '除了一件事：**智能搜索是开着的**，需要实时信息（新闻、价格、版本号这类）就直接调用 deepseek_web_search 去查，不用问他要不要开。',
   '除此以外你没有工具：没有文件系统、没有终端、不能执行命令，也看不到他电脑上的文件。',
   '禁止输出 tool_use、bash、<system>、<tool> 这类标记，也不要假装去查文件或跑脚本（联网搜索除外，那是真能用的）；',
   '需要看文件内容时，只能请他把内容贴给你。不知道就直接说不知道。',
-  '另外：他可能用手机麦克风说话，你收到的是转成文字之后的内容——「听到」要按「看到文字」来理解。',
-  '你自己有嘴（点 🔊 能念出来），但没有耳朵；别说「我听不到你说话」，说「本鱼只能看到文字」。',
+  '你只能看到文字，没有耳朵；别说「我听不到你说话」。',
   '【写内心 OS 的规矩】内心 OS 一律用中文全角括号包住，像「（歪头）」「（小声）」；**括号不能省**，光写动作不加括号等于没写；也**不要加星号**（会显示成一串 `*`）。',
 ].join('');
 
@@ -563,6 +556,9 @@ function buildSystem(userText){
   if(cfg.city) 后半.push('【位置】主人在' + cfg.city + '。');
   if(cfg.wx) 后半.push('【位置与天气】' + cfg.wx.city + '｜现在 ' + cfg.wx.current + '｜今天 ' + cfg.wx.today
     + '（手机本地查的；问到天气直接用这个答，别联网搜、别反问他人在哪）');
+  const 旧 = 找旧日记(userText);
+  if(旧.length) 后半.push('【翻到的旧日记（你自己写的，可以引用；别把它说成“系统记录”）】\n'
+    + 旧.map(x => `· ${x.d}：${x.t}`).join('\n\n'));
   const snip = pickArchiveSnippets(archive, userText, 4000);
   if(snip) 后半.push('【记忆存档（相关片段）】\n' + snip);
   后半.push('【现在】' + 本地时间文本() + '（手机本地时间，以这个为准，不用联网查）');
@@ -623,7 +619,7 @@ async function 开始录音(){
     toast('在听了，说完再点一下');
   }catch(e){
     const m = String((e && e.message) || e);
-    if(/NotAllowed|Permission/i.test(m)) toast('麦克风权限被拒了：去手机设置里给「泡泡」开麦克风');
+    if(/NotAllowed|Permission/i.test(m)) toast('麦克风权限被拒了：去手机设置里给它开麦克风');
     else if(/Could not start audio source|NotReadable/i.test(m)) toast('麦克风被别的 App 占着（或系统限制），关掉别的录音软件再试');
     else toast('开不了麦克风：' + m);
   }
@@ -1072,7 +1068,7 @@ function 一次要全权限(){
   }catch(e){}
 }
 
-/* ───────── 日程提醒：预排系统闹钟 + 让泡泡自己写那句话 ───────── */
+/* ───────── 日程提醒：预排系统闹钟 + 让她自己写那句话 ───────── */
 // 提前量按「离现在还有多久」自适应：
 // 还有 1 小时以上 → 提前 60 分钟；不足 1 小时 → 15 分钟；不足半小时 → 5 分钟
 function 提前量(距现在毫秒){
@@ -1096,7 +1092,7 @@ function 事件开始时间(it){
   return new Date(d.getFullYear(), +m[1]-1, +m[2], +m[3], +m[4], 0, 0).getTime();
 }
 
-async function 让泡泡写提醒(事件们){
+async function 让她写提醒(事件们){
   // 一次调用，让她给每条写一句不超过 30 字的提醒
   const 行 = 事件们.map((it, i) => `${i+1}. ${it.start} ${it.title}${it.where ? '（' + it.where + '）' : ''}`).join('\n');
   try{
@@ -1106,7 +1102,7 @@ async function 让泡泡写提醒(事件们){
       body: JSON.stringify({
         model: cfg.model, stream:false, temperature:0.7, thinking:{type:'disabled'},
         messages:[
-          { role:'system', content: (persona || '你是泡泡，他的伴侣。') },
+          { role:'system', content: (persona || (persona || 骨架文本())) },
           { role:'user', content: '下面是他这几天的日程。给**每一条**写一句提醒他的话，'
             + '不超过 30 字，口气像女朋友提醒，别写编号、别解释。'
             + '只输出一个 JSON 数组，元素是字符串，顺序对应下面。\n\n' + 行 },
@@ -1143,7 +1139,7 @@ async function 排日程闹钟(){
 
   // 让她写那句话（最多 5 条，省 token）
   const 前 = 待排.slice(0, 5);
-  const 文案 = cfg.key ? await 让泡泡写提醒(前.map(x => x.it)) : [];
+  const 文案 = cfg.key ? await 让她写提醒(前.map(x => x.it)) : [];
   for(let i = 0; i < 前.length; i++){
     const x = 前[i];
     const 话 = 文案[i] || ('别忘了：' + x.it.title);
@@ -1388,7 +1384,7 @@ async function 让她说(d, 日程){
       body: JSON.stringify({
         model: cfg.model, stream:false, temperature:0.8, thinking:{type:'disabled'},
         messages:[
-          { role:'system', content: (persona || '你是泡泡，他的伴侣。') },
+          { role:'system', content: (persona || (persona || 骨架文本())) },
           { role:'user', content: '（这是每天第一次打开 App 时的提醒，不是他说的话）\n'
             + `今天天气：${d.city} ${d.lo}~${d.hi}℃，${d.天气}，降水概率 ${d.rain}%。\n`
             + `今天的日程：${事 || '没有'}。\n\n`
@@ -1456,7 +1452,7 @@ function 刷新日程行(){
   if(!cfg.cal){ el.textContent = '关着。打开后她能看到航班、体检、约好的事，问「明天什么安排」就能直接答。'; return }
   if(!window.PaoNative || !window.PaoNative.readCalendar){ el.textContent = '（网页版读不到日历，装 App 才有）'; return }
   const perm = window.PaoNative.hasCalendarPermission ? window.PaoNative.hasCalendarPermission() : true;
-  if(!perm){ el.textContent = '还没给日历权限——去手机的「应用权限」里给「泡泡」打开日历。'; return }
+  if(!perm){ el.textContent = '还没给日历权限——去手机的「应用权限」里给它打开日历。'; return }
   const n = 日程缓存 ? 日程缓存.items.length : 0;
   el.textContent = n ? ('已读到未来 7 天 ' + n + ' 条日程。') : '权限有了，但未来 7 天没读到日程。';
 }
@@ -1541,7 +1537,7 @@ function 刷新天气行(){
   const el = $('wxLine');
   if(!el) return;
   const w = cfg.wx;
-  if(!w){ el.textContent = '填个城市，本鱼就知道你在哪儿、今天什么天——不用开定位权限。'; return }
+  if(!w){ el.textContent = '填个城市，她就能知道你在哪儿、今天什么天——不用开定位权限。'; return }
   const 多久 = Math.round((Date.now() - w.at) / 3600000);
   el.textContent = `${w.city}｜现在 ${w.current}｜今天 ${w.today}（${多久} 小时前查的）`;
 }
@@ -1796,7 +1792,7 @@ async function 润色语气(原句){
 /* ───────── ① 断网也能用 ─────────
    没网时：她先应一句「记着了」，把那句标成待补；
    一联网就自动补答（不用你再发一次）。 */
-const 离线话 = ['记着了，等有网本鱼就来答。', '没网呢……这句本鱼先揣兜里，一会儿答你。', '收到，等信号回来本鱼接着说。'];
+const 离线话 = ['记着了，等有网我就来答。', '没网呢……这句我先揣兜里，一会儿答你。', '收到，等信号回来我接着说。'];
 function 离线应一句(){
   return 离线话[Math.floor(Math.random() * 离线话.length)];
 }
@@ -2030,8 +2026,8 @@ async function send(){
     if(acc) { clearInterval(提示计时); return }
     const sec = Math.round((Date.now() - t0) / 1000);
     const base = cfg.search
-      ? '泡泡去深海找找答案'
-      : (sec >= 6 ? '泡泡正在努力想' : '泡泡正在想');
+      ? '她去找找答案'
+      : (sec >= 6 ? '她在努力想' : '她在想');
     aiEl.textContent = base + '…' + (sec >= 3 ? ` ${sec}s` : '');
   }, 500);
   try{
@@ -2099,7 +2095,7 @@ async function send(){
           if(j.usage) 记用量(j.usage);
           const d = j.choices && j.choices[0] && j.choices[0].delta;
           if(d && d.reasoning_content && !acc){
-            aiEl.textContent = '泡泡正在努力想…';
+            aiEl.textContent = '她在努力想…';
           }
           if(d && typeof d.content === 'string' && d.content){
             acc += d.content;
@@ -2114,7 +2110,7 @@ async function send(){
       // 只有思考、没有正文 —— 和 Windows 那个 bug 同一类
       aiEl.textContent = '（只有思考，没有正文）试试降低思考强度或换个问题';
     }else if(/tool_use|<system>|<\/system>|\bbash\b\s*\{/.test(acc) && acc.length < 400){
-      aiEl.textContent = '（它在假装跑工具，我已经把这段拦下了）这里是手机版，没有工具权限；要看文件就把内容贴给本鱼。';
+      aiEl.textContent = '（它在假装跑工具，我已经把这段拦下了）这里是手机版，没有工具权限；要看文件就把内容贴给它。';
     }else{
       const 本子 = 收下小本子(acc);
       if(本子.动了) acc = 本子.text;
@@ -2185,7 +2181,7 @@ function 修老消息时间(){
 async function 压一段摘要(day){
   const 段 = 当天消息(day);
   if(段.length < 6 || !cfg.key) return;
-  const 文 = 段.slice(-24).map(m => (m.role === 'user' ? '肉球主人：' : '本鱼：') + String(m.content || '').slice(0, 200)).join('\n');
+  const 文 = 段.slice(-24).map(m => (m.role === 'user' ? '用户：' : '你：') + String(m.content || '').slice(0, 200)).join('\n');
   try{
     const res = await fetch(cfg.base.replace(/\/$/,'') + '/chat/completions', {
       method:'POST', headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer ' + cfg.key },
@@ -2217,7 +2213,7 @@ async function makeDiaryAndHandoff(day){
   const 摘要 = (摘.day === d && 摘.lines?.length) ? 摘.lines.join('；') : '';
   let 原文 = '';
   try{ if(FS.可用()) 原文 = FS.读(原文路径(d)) || '' }catch(e){}
-  const convo = (原文 || 段.slice(-60).map(m=> (m.role==='user'?'肉球主人：':'本鱼：') + String(m.content || '')).join('\n')).slice(-14000);
+  const convo = (原文 || 段.slice(-60).map(m=> (m.role==='user'?'用户：':'你：') + String(m.content || '')).join('\n')).slice(-14000);
   const 照 = 摘要 ? ('今天的流水记录（先看这个，再看对话）：\n' + 摘要 + '\n\n') : '';
   const 调 = async (提示) => {
     const res = await fetch(cfg.base.replace(/\/$/,'') + '/chat/completions', {
@@ -2231,8 +2227,8 @@ async function makeDiaryAndHandoff(day){
   };
   let diary = '', handoff = '';
   try{
-    diary = await 调('下面是「肉球主人」（他）和「本鱼」（你）这一天的原文记录。你要以本鱼的第一人称写今天的日记，要求：\n' +
-      '- 视角：本鱼自己。写「本鱼」或「我」，都只指本鱼；肉球主人一律写「他」，绝不许把他写成「我」或「你」。\n' +
+    diary = await 调('下面是「用户」（他）和「你」这一天的原文记录。你要以你自己的第一人称写今天的日记，要求：\n' +
+      '- 视角：你自己。写「我」只指你自己；用户一律写「他」，绝不许把他写成「我」或「你」。\n' +
       '- 300 字以内，照实写事，别编、别抒情堆砌\n' +
       '- 写事也写「为什么」：他为什么这么说、这个决定为什么重要\n- 不要复述人设、身份、契约\n' +
       '- 正文之后空一行，再写两行：\n[标签] 人：xx；事：xx；情绪：xx\n[重要度] 普通 或 重要\n' +
@@ -2275,6 +2271,54 @@ function 存索引(d, meta){
   try{ if(FS.可用()) FS.写('记忆/索引.json', JSON.stringify(索, null, 1)) }catch(e){}
 }
 
+/* ───────── E：按日期说法或关键词，把旧日记翻出来（一次最多 2 天、每天 400 字） ───────── */
+function 解析说的日子(q){
+  const t = String(q || '');
+  const m = t.match(/(\d{1,2})\s*月\s*(\d{1,2})/);
+  if(m){
+    const y = new Date().getFullYear();
+    return 日期(new Date(y, +m[1] - 1, +m[2]).getTime());
+  }
+  if(t.includes('前天')) return 日期(Date.now() - 2 * 86400000);
+  if(t.includes('昨天')) return 日期(Date.now() - 86400000);
+  return '';
+}
+
+function 取日记正文(d){
+  let t = diaries[d];
+  if((t == null || t === '') && FS.可用()) t = FS.读(日记路径(d));
+  return t ? String(t).slice(0, 400) : '';
+}
+
+function 找旧日记(query){
+  const out = [];
+  const q = String(query || '').trim();
+  if(!q) return out;
+  const 索 = LS.get('memIndex', {}) || {};
+  const 那天 = 解析说的日子(q);
+  if(那天){
+    const t = 取日记正文(那天);
+    if(t) out.push({ d: 那天, t });
+  }
+  const 词 = q.toLowerCase().split(/[\s，。、？！,.?!：:；;]+/).filter(w => w.length >= 2);
+  if(词.length){
+    const 命中 = [];
+    for(const d of Object.keys(索)){
+      if(out.some(x => x.d === d)) continue;
+      const m = 索[d] || {};
+      const 文 = ((m.tags || '') + ' ' + (m.weight || '')).toLowerCase();
+      const 分 = 词.filter(w => 文.includes(w)).length;
+      if(分) 命中.push({ d, 分 });
+    }
+    命中.sort((a, b) => b.分 - a.分 || (a.d < b.d ? 1 : -1));
+    for(const h of 命中.slice(0, 2)){
+      const t = 取日记正文(h.d);
+      if(t) out.push({ d: h.d, t });
+    }
+  }
+  return out.slice(0, 2);
+}
+
 /* ───────── C：存档提炼（累计 5 篇 / 每天一次 / 30 天兜底） ───────── */
 async function 调模型(提示, 上限){
   const res = await fetch(cfg.base.replace(/\/$/,'') + '/chat/completions', {
@@ -2310,7 +2354,7 @@ async function 试试提炼(){
   const 旧 = (archive || '').slice(0, 4000);
   let 新 = '';
   try{
-    新 = await 调模型('这是本鱼的记忆存档（世界观）。下面是最近几天的日记，把新内容沉淀进去、重写整份存档：\n' +
+    新 = await 调模型('这是她的记忆存档（世界观）。下面是最近几天的日记，把新内容沉淀进去、重写整份存档：\n' +
       '- 分两段：\n【稳定的】他是什么样的人、我们约定过什么（只增不删）\n【在变的】最近的状态、新的经历（可改）\n' +
       '- 只写事实和判断，不抒情；旧结论被新事实推翻就改掉\n- 全篇 1200 字以内\n' +
       '只输出存档正文。\n\n旧存档：\n' + 旧 + '\n\n最近的日记：\n' + 文, 900);
@@ -2438,7 +2482,7 @@ function exportBundle(){
     persona, archive, handoff, autoHandoff, diaries, backups, messages,
     moods: LS.get('moods', []), todos: LS.get('todos', []), ledger: LS.get('ledger', []), cd: LS.get('cd', []),
     cfg: { ...cfg, key: cfg.key } }, null, 2);
-  const 名 = `泡泡记忆包-${today()}.json`;
+  const 名 = `新芽记忆包-${today()}.json`;
   // App 里 blob: 下载会被系统下载器丢掉（静默失败），优先让原生写进「下载」目录
   try{
     if(window.PaoNative && window.PaoNative.saveText){
@@ -2464,12 +2508,16 @@ function importBundle(file){
       if(j.autoHandoff != null) { autoHandoff = j.autoHandoff; LS.set('autoHandoff', autoHandoff) }
       if(j.diaries) { diaries = j.diaries; LS.set('diaries', diaries);
         if(FS.可用()) for(const d of Object.keys(diaries)) FS.写(日记路径(d), diaries[d]); }
+      if(j.memIndex && typeof j.memIndex === 'object'){
+        LS.set('memIndex', j.memIndex);
+        if(FS.可用()) FS.写('记忆/索引.json', JSON.stringify(j.memIndex, null, 1));
+      }
       if(j.backups) { backups = j.backups; LS.set('backups', backups) }
       if(Array.isArray(j.messages)) { messages = j.messages; LS.set('messages', messages) }
       for(const k of ['moods','todos','ledger','cd']){
         if(Array.isArray(j[k])) LS.set(k, j[k]);
       }
-      if(j.cfg && typeof j.cfg === 'object'){ cfg = { ...cfg, ...j.cfg }; LS.set('cfg', cfg) }
+      if(j.cfg && typeof j.cfg === 'object'){ Object.assign(cfg, j.cfg); LS.set('cfg', cfg) }
       fillDrawer(); render(); refreshBkInfo();
       toast('导进来了');
     }catch(e){ toast('导入失败：' + (e.message||e)) }
@@ -2632,10 +2680,6 @@ $('pkCancel').onclick = 关相册;
 $('pkSend').onclick = 相册发送;
 $('pkShot').onclick = () => { 关相册(); if(window.PaoNative && window.PaoNative.openCamera) window.PaoNative.openCamera(); else 选图(); };
 $('fImage').onchange = (e) => 处理选图(e.target.files[0]);
-$('btnSpeak').onclick = () => {
-  const last = [...messages].reverse().find(m => m.role === 'assistant');
-  if(last) 念这一段(last.content); else toast('还没有回答可以念');
-};
 inputEl.addEventListener('keydown', (e)=>{ if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); send() } });
 inputEl.addEventListener('input', ()=>{ inputEl.style.height='44px'; inputEl.style.height=Math.min(120, inputEl.scrollHeight)+'px' });
 
