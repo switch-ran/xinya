@@ -490,6 +490,85 @@ public class MainActivity extends Activity {
             }
         }
 
+        /* ───── 文件存储（v2.1.0）：记忆和原文落到 App 私有目录 ───── */
+
+        private java.io.File safeFile(String rel) {
+            if (rel == null) return null;
+            String r = rel.replace('\\', '/').trim();
+            while (r.startsWith("/")) r = r.substring(1);
+            if (r.isEmpty() || r.contains("..")) return null;
+            java.io.File base = getExternalFilesDir(null);
+            if (base == null) base = getFilesDir();
+            java.io.File f = new java.io.File(base, r);
+            try {
+                if (!f.getCanonicalPath().startsWith(base.getCanonicalPath())) return null;
+            } catch (Exception e) { return null; }
+            return f;
+        }
+
+        @JavascriptInterface
+        public String fsWrite(String rel, String content, boolean append) {
+            try {
+                java.io.File f = safeFile(rel);
+                if (f == null) return "路径不合法";
+                java.io.File d = f.getParentFile();
+                if (d != null && !d.exists() && !d.mkdirs()) return "建目录失败";
+                java.io.FileOutputStream fo = new java.io.FileOutputStream(f, append);
+                fo.write((content == null ? "" : content).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                fo.close();
+                return "";
+            } catch (Exception e) { return String.valueOf(e.getMessage()); }
+        }
+
+        @JavascriptInterface
+        public String fsRead(String rel) {
+            try {
+                java.io.File f = safeFile(rel);
+                if (f == null || !f.exists() || !f.isFile()) return null;
+                byte[] b = new byte[(int) f.length()];
+                java.io.FileInputStream fi = new java.io.FileInputStream(f);
+                int off = 0;
+                while (off < b.length) {
+                    int n = fi.read(b, off, b.length - off);
+                    if (n <= 0) break;
+                    off += n;
+                }
+                fi.close();
+                return new String(b, 0, off, java.nio.charset.StandardCharsets.UTF_8);
+            } catch (Exception e) { return null; }
+        }
+
+        @JavascriptInterface
+        public String fsList(String rel) {
+            org.json.JSONArray arr = new org.json.JSONArray();
+            try {
+                java.io.File d = safeFile(rel);
+                if (d != null && d.isDirectory()) {
+                    java.io.File[] fs = d.listFiles();
+                    if (fs != null) {
+                        java.util.Arrays.sort(fs);
+                        for (java.io.File x : fs) arr.put(x.getName());
+                    }
+                }
+            } catch (Exception ignored) {}
+            return arr.toString();
+        }
+
+        @JavascriptInterface
+        public boolean fsDelete(String rel) {
+            try {
+                java.io.File f = safeFile(rel);
+                return f != null && (!f.exists() || f.delete());
+            } catch (Exception e) { return false; }
+        }
+
+        @JavascriptInterface
+        public String fsRoot() {
+            java.io.File base = getExternalFilesDir(null);
+            if (base == null) base = getFilesDir();
+            return base.getAbsolutePath();
+        }
+
         @JavascriptInterface
         public boolean hasCalendarPermission() {
             if (Build.VERSION.SDK_INT < 23) return true;
