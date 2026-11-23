@@ -592,6 +592,7 @@ function floatToWav(chunks, sr){
 let 录音器 = null, 录音块 = [], 录音中 = false, 原生录音 = false;
 
 async function 开始录音(){
+  if(!$('btnMic')) return;
   // 优先用原生录音（AudioRecord）：WebView 的 getUserMedia 在不少国产 ROM 上开不了音频源
   try{
     if(window.PaoNative && window.PaoNative.startRecord){
@@ -629,6 +630,7 @@ async function 开始录音(){
 }
 
 function 停止录音(){
+  if(!$('btnMic')) return;
   录音中 = false;
   $('btnMic').classList.remove('rec');
   $('btnMic').textContent = '🎤';
@@ -2618,24 +2620,11 @@ if(cfg.key) setTimeout(() => 查余额(true), 800);
 $('btnClearImg').onclick = () => 清空原图();
 $('srGo').onclick = () => 搜对话($('srInput').value);
 $('srInput').onkeydown = (e) => { if(e.key === 'Enter') 搜对话($('srInput').value) };
-$('tdAdd').onclick = () => {
-  const v = ($('tdInput').value || '').trim();
-  if(!v) return;
-  待办.unshift({ text: v, done: false, at: Date.now() });
-  $('tdInput').value = ''; 存小本子(); 画小本子();
-};
 $('lgAdd').onclick = () => {
   const 额 = Number(($('lgAmount').value || '').replace(/[^\d.]/g, ''));
   if(!Number.isFinite(额) || 额 <= 0){ toast('金额填个数字'); return }
   账本.unshift({ amount: 额, note: ($('lgNote').value || '').trim(), at: Date.now() });
   $('lgAmount').value = ''; $('lgNote').value = '';
-  存小本子(); 画小本子();
-};
-$('cdAdd').onclick = () => {
-  const t = ($('cdTitle').value || '').trim(), d = $('cdDate').value;
-  if(!t || !d){ toast('名字和日期都要填'); return }
-  倒计时.push({ title: t, date: d });
-  $('cdTitle').value = ''; $('cdDate').value = '';
   存小本子(); 画小本子();
 };
 $('btnPlus').onclick = 打开相册;
