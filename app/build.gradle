@@ -1,15 +1,15 @@
 plugins { id 'com.android.application' }
 
 android {
-    namespace 'com.wjb.xinya'
+    namespace 'com.xinya.app'
     compileSdk 34
 
     defaultConfig {
-        applicationId "com.wjb.xinya"
+        applicationId "com.xinya.app"
         minSdk 24
         targetSdk 34
-        versionCode 10
-        versionName "2.1.1"
+        versionCode 11
+        versionName "2.1.2"
     }
 
     buildTypes {
