@@ -45,7 +45,7 @@
             android:name=".AlarmReceiver"
             android:exported="false">
             <intent-filter>
-                <action android:name="com.wjb.xinya.BACKUP_TICK" />
+                <action android:name="com.xinya.app.BACKUP_TICK" />
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
             </intent-filter>
         </receiver>
