@@ -271,7 +271,7 @@
 <script>
 "use strict";
 
-const VERSION = 'v2.1.1';
+const VERSION = 'v2.1.2';
 
 /* ───────── 存储 ───────── */
 const LS = {
@@ -544,26 +544,32 @@ function 本地时间文本(){
 }
 
 // 顺序讲究：**不变的在最前、会变的放最后** —— 前缀能命中 DeepSeek 缓存，便宜
-function buildSystem(userText){
-  // 顺序按「缓存友好」排：不动的在前，每轮变的垫底 —— 前缀能稳定命中服务端缓存
+// system 只放「不会变」的：前缀一字不动，缓存才能一直命中
+function buildSystem(){
   const 前半 = [ENV];
   if(persona) 前半.push(persona.trim());
   if(handoff) 前半.push('【交接（压缩稿，可能不准；拿不准就问他，别当原话引用）】\n' + handoff.trim());
   if(autoHandoff) 前半.push('【手机侧交接（App 自动整理，可能不准）】\n' + autoHandoff.trim());
   前半.push('【规矩】用简体中文口语，短句，别写成报告；不确定就说不确定，别编。');
+  return 前半.join('\n\n');
+}
 
-  const 后半 = [];
-  if(cfg.city) 后半.push('【位置】主人在' + cfg.city + '。');
-  if(cfg.wx) 后半.push('【位置与天气】' + cfg.wx.city + '｜现在 ' + cfg.wx.current + '｜今天 ' + cfg.wx.today
-    + '（手机本地查的；问到天气直接用这个答，别联网搜、别反问他人在哪）');
+// 每轮会变的东西，跟着这一句走，不碰 system
+function 本轮附注(userText){
+  const 块 = [];
+  if(cfg.city) 块.push('【位置】主人在' + cfg.city + '。');
+  if(cfg.wx) 块.push('【位置与天气】' + cfg.wx.city + '｜现在 ' + cfg.wx.current + '｜今天 ' + cfg.wx.today
+    + (cfg.wx.今天段 ? '\n今天：' + 段文本(cfg.wx.今天段) : '')
+    + (cfg.wx.明天段 ? '\n明天：' + 段文本(cfg.wx.明天段) : '')
+    + '\n（手机本地查的；问到天气直接用这些答，上午/中午/晚上都在这儿，别联网搜、别反问他人在哪）');
   const 旧 = 找旧日记(userText);
-  if(旧.length) 后半.push('【翻到的旧日记（你自己写的，可以引用；别把它说成“系统记录”）】\n'
+  if(旧.length) 块.push('【翻到的旧日记（你自己写的，可以引用；别把它说成“系统记录”）】\n'
     + 旧.map(x => `· ${x.d}：${x.t}`).join('\n\n'));
+  else if(解析说的日子(userText) || /还记得|上次那|那次那|那天那/.test(userText)) 块.push('【提示】他提到的那个时间/那件事，日记里没翻到。回答时直接说「那天没有记录」或「翻不到」，别编、别糊弄。');
   const snip = pickArchiveSnippets(archive, userText, 4000);
-  if(snip) 后半.push('【记忆存档（相关片段）】\n' + snip);
-  后半.push('【现在】' + 本地时间文本() + '（手机本地时间，以这个为准，不用联网查）');
-
-  return 前半.concat(后半).join('\n\n');
+  if(snip) 块.push('【记忆存档（相关片段）】\n' + snip);
+  块.push('【现在】' + 本地时间文本() + '（手机本地时间，以这个为准，不用联网查）');
+  return 块.join('\n\n');
 }
 
 
@@ -920,7 +926,7 @@ function 刷新日记提示(){
   const el = $('diaryHint');
   if(!el) return;
   const days = Object.keys(diaries).sort();
-  el.textContent = days.length ? ('共 ' + days.length + ' 天：' + days.slice(-6).join('、')) : '还没有日记';
+  el.textContent = days.length ? ('共 ' + days.length + ' 天（' + days[days.length-1] + ' 最近）') : '还没有日记';
 }
 function 读某天(){
   const d = $('diaryDay').value || today();
@@ -1491,7 +1497,30 @@ async function 用写wttr(city){
     today: Math.round(Number(w.mintempC || 0)) + '~' + Math.round(Number(w.maxtempC || 0)) + '℃ '
       + 天气译((noon.lang_zh && noon.lang_zh[0] && noon.lang_zh[0].value) || noon.weatherDesc?.[0]?.value)
       + (noon.chanceofrain != null ? '，降水概率 ' + noon.chanceofrain + '%' : ''),
+    今天段: wttr分段(w),
+    明天段: j.weather && j.weather[1] ? wttr分段(j.weather[1]) : null,
   };
+}
+
+/** wttr 的 hourly 是每 3 小时一格：3=9点、4=12点、6=18点 */
+function wttr分段(w){
+  if(!w) return null;
+  const h = w.hourly || [];
+  const 取 = (i) => {
+    const x = h[i] || {};
+    return {
+      temp: Math.round(Number(x.tempC || 0)),
+      desc: 天气译((x.lang_zh && x.lang_zh[0] && x.lang_zh[0].value) || x.weatherDesc?.[0]?.value),
+      rain: x.chanceofrain != null ? Number(x.chanceofrain) : null,
+    };
+  };
+  return { 上午: 取(3), 中午: 取(4), 晚上: 取(6) };
+}
+
+function 段文本(d){
+  if(!d) return '';
+  const f = (x) => `${x.temp}℃ ${x.desc}` + (x.rain != null ? `（降雨 ${x.rain}%）` : '');
+  return `上午 ${f(d.上午)}；中午 ${f(d.中午)}；晚上 ${f(d.晚上)}`;
 }
 
 async function 用openmeteo(city){
@@ -1501,12 +1530,23 @@ async function 用openmeteo(city){
   if(!hit) throw new Error('没找到这个地名');
   const w = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${hit.latitude}&longitude=${hit.longitude}`
     + '&current=temperature_2m,weather_code&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max'
-    + '&timezone=Asia%2FShanghai&forecast_days=1');
+    + '&hourly=temperature_2m,weather_code,precipitation_probability'
+    + '&timezone=Asia%2FShanghai&forecast_days=2');
   const wj = await w.json();
   const 码 = {0:'晴',1:'晴间多云',2:'多云',3:'阴',45:'雾',48:'雾凇',51:'毛毛雨',53:'毛毛雨',55:'毛毛雨',
     61:'小雨',63:'中雨',65:'大雨',66:'冻雨',67:'冻雨',71:'小雪',73:'中雪',75:'大雪',77:'米雪',
     80:'阵雨',81:'阵雨',82:'暴雨',85:'阵雪',86:'阵雪',95:'雷阵雨',96:'雷阵雨',99:'雷暴冰雹'};
   const d = wj.daily || {};
+  const hh = wj.hourly || {};
+  const 取段 = (day) => {
+    const idx = (hour) => day * 24 + hour;
+    const 取 = (hour) => ({
+      temp: Math.round(Number((hh.temperature_2m || [])[idx(hour)] || 0)),
+      desc: 码[(hh.weather_code || [])[idx(hour)]] || '',
+      rain: (hh.precipitation_probability || [])[idx(hour)],
+    });
+    return { 上午: 取(9), 中午: 取(12), 晚上: 取(18) };
+  };
   return {
     city: hit.name + (hit.admin1 && hit.admin1 !== hit.name ? '·' + hit.admin1 : ''),
     at: Date.now(),
@@ -1514,6 +1554,8 @@ async function 用openmeteo(city){
     today: Math.round(d.temperature_2m_min[0]) + '~' + Math.round(d.temperature_2m_max[0]) + '℃ '
       + (码[d.weather_code[0]] || '')
       + (d.precipitation_probability_max?.[0] != null ? '，降水概率 ' + d.precipitation_probability_max[0] + '%' : ''),
+    今天段: 取段(0),
+    明天段: (d.temperature_2m_max || []).length > 1 ? 取段(1) : null,
   };
 }
 
@@ -2036,17 +2078,20 @@ async function send(){
     if(cfg.city && /天气|下雨|下雪|雨|雪|几度|多少度|气温|温度|冷不冷|热不热|穿什么|带伞|刮风/.test(text)){
       try{ await 查天气(true) }catch(e){}
     }
+    const 附注 = 本轮附注(text);
     const body = {
       model: cfg.model,
       stream: !useSearch,
       thinking: { type: 'enabled' },     // 深度思考：默认且锁定
       messages: [
-        { role: 'system', content: (() => { const sy = buildSystem(text); 最近system = sy; return sy })() },
-        ...(await Promise.all(取历史(历史预算).map(async (m) => {
+        { role: 'system', content: (() => { const sy = buildSystem(); 最近system = sy + '\n\n' + 附注; return sy })() },
+        ...(await Promise.all(取历史(历史预算).map(async (m, i, arr) => {
+          const 是本轮 = (i === arr.length - 1) && m.role === 'user';
+          const 前缀 = 是本轮 && 附注 ? '（本轮附带的信息）\n' + 附注 + '\n\n---\n' : '';
           if (m.role !== 'user') return { role: m.role, content: m.content };
           const img = m.image || (m.imageId ? await 取原图(m.imageId) : '') || m.thumb || '';
-          if (!img) return { role: 'user', content: m.content };
-          const 文字 = (m.content || '看看这张图') + (m.ocr ? '\n\n（图里认出的文字）\n' + m.ocr : '');
+          if (!img) return { role: 'user', content: 前缀 + m.content };
+          const 文字 = 前缀 + (m.content || '看看这张图') + (m.ocr ? '\n\n（图里认出的文字）\n' + m.ocr : '');
           return { role: 'user', content: [
             { type: 'text', text: 文字 },
             { type: 'image_url', image_url: { url: img } },
@@ -2236,7 +2281,8 @@ async function makeDiaryAndHandoff(day){
   }catch(e){ diary = '' }
   try{
     const 旧交接 = (handoff && handoff.trim().slice(0, 800)) || '';
-    handoff = await 调('把这一天的重点压成给“明天的她”看的交接，只写这轮重点，不复述人设/身份/契约/红线。\n' +
+    handoff = await 调('把这一天的重点压成给「明天的自己」看的交接（写的人就是你，明天你还会读到它）。只写这轮重点，不复述人设/身份/契约/红线。\n' +
+      '主语规矩：写你自己用「我」，写他用「他」；**不许出现「她」和角色名（本鱼/泡泡之类）**，读到的人要靠「我／他」分清是谁。\n' +
       '第一行必须写「（截至 ' + d + '）」。\n' +
       '按四项写：【近况】【答应过】【他的状态】【待办】，总长不超过 ' + 交接上限 + ' 字，宁可少写。\n' +
       (旧交接 ? '\n旧交接（可参考，别照抄）：\n' + 旧交接 + '\n' : '') +
@@ -2244,9 +2290,9 @@ async function makeDiaryAndHandoff(day){
   }catch(e){ handoff = '' }
   // ④ 末尾补一句日记索引（只告诉哪天有，不给内容）
   try{
-    const 天 = Object.keys(diaries || {}).filter(k => diaries[k]).sort().slice(-5);
+    const 天 = Object.keys(diaries || {}).filter(k => diaries[k]).sort();
     if(天.length && handoff){
-      handoff = handoff.replace(/\n?日记：.*$/m, '') + '\n\n日记有记录：' + 天.map(k => k.slice(5)).join('、');
+      handoff = handoff.replace(/\n?日记[^\n]*$/m, '') + '\n\n日记有记录：从 ' + 天[0] + ' 起';
     }
   }catch(e){}
   // 解析标签与重要度（正文里不要留）
@@ -2357,9 +2403,10 @@ async function 试试提炼(){
     新 = await 调模型('这是她的记忆存档（世界观）。下面是最近几天的日记，把新内容沉淀进去、重写整份存档：\n' +
       '- 分两段：\n【稳定的】他是什么样的人、我们约定过什么（只增不删）\n【在变的】最近的状态、新的经历（可改）\n' +
       '- 只写事实和判断，不抒情；旧结论被新事实推翻就改掉\n- 全篇 1200 字以内\n' +
-      '只输出存档正文。\n\n旧存档：\n' + 旧 + '\n\n最近的日记：\n' + 文, 900);
+      '只输出存档正文。\n\n旧存档：\n' + 旧 + '\n\n最近的日记：\n' + 文, 1600);
   }catch(e){ return }
   if(!新) return;
+  if(!/[。！？）」』”]$/.test(新.trim())) return;
   archive = 新;
   LS.set('archive', 新);
   FS.写('记忆/存档.md', 新);
@@ -2480,6 +2527,7 @@ async function doBackup(day){
 function exportBundle(){
   const 文 = JSON.stringify({ v:2, exportedAt:new Date().toISOString(),
     persona, archive, handoff, autoHandoff, diaries, backups, messages,
+    memIndex: LS.get('memIndex', {}),
     moods: LS.get('moods', []), todos: LS.get('todos', []), ledger: LS.get('ledger', []), cd: LS.get('cd', []),
     cfg: { ...cfg, key: cfg.key } }, null, 2);
   const 名 = `新芽记忆包-${today()}.json`;
@@ -2592,7 +2640,7 @@ function fillDrawer(){
 function refreshBkInfo(){
   const days = Object.keys(backups).sort();
   $('bkInfo').textContent = days.length
-    ? `共 ${days.length} 天：${days.join('、')}`
+    ? `共 ${days.length} 天（最近 ${days[days.length-1]}）`
     : '还没有备份记录';
 }
 function setMeLock(locked){
